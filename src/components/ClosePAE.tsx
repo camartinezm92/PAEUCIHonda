@@ -11,6 +11,7 @@ interface ClosePAEProps {
 export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
   // We need to keep track of the final ratings for all NOCs in this record
   const [nandas, setNandas] = useState<SelectedNANDA[]>(record.nandas);
+  const [observations, setObservations] = useState(record.observations || '');
 
   const updateFinalRating = (nandaCode: string, nocCode: string, rating: number) => {
     setNandas(nandas.map(nanda => {
@@ -48,6 +49,7 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
     const updatedRecord: PAERecord = {
       ...record,
       nandas,
+      observations,
       status: 'CERRADA'
     };
 
@@ -77,7 +79,7 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
 
           <div className="space-y-6">
             {nandasWithNocs.map(nanda => (
-              <div key={nanda.code} className="border border-slate-200 rounded-lg overflow-hidden">
+              <div key={nanda.code} className="border border-slate-200 rounded-lg overflow-hidden break-inside-avoid mb-6">
                 <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
                   <h3 className="font-bold text-slate-800">
                     NANDA [{nanda.code}] - {nanda.name}
@@ -122,6 +124,17 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="pt-6 border-t border-slate-200">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Observaciones Finales</label>
+            <textarea 
+              className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-3 border"
+              rows={4}
+              placeholder="Ingrese observaciones sobre la evolución y cierre del proceso..."
+              value={observations}
+              onChange={e => setObservations(e.target.value)}
+            />
           </div>
 
           <div className="pt-6 border-t border-slate-200 flex justify-end gap-4">

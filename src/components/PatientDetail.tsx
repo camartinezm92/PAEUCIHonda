@@ -1,6 +1,7 @@
 import React from 'react';
 import { PAERecord, PatientInfo } from '../types';
 import { User, Activity, Clock, CheckCircle, Eye, Trash2, Edit, Download } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
 interface PatientDetailProps {
   patient: PatientInfo;
@@ -28,10 +29,21 @@ export default function PatientDetail({
   const sortedRecords = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const handleDownloadAllPDF = () => {
-    const originalTitle = document.title;
-    document.title = `Historial_Completo_${patient.name.replace(/\s+/g, '_')}`;
-    window.print();
-    document.title = originalTitle;
+    const element = document.getElementById('patient-history-content');
+    if (!element) return;
+    
+    const filename = `Historial_Completo_${patient.name.replace(/\s+/g, '_')}.pdf`;
+    
+    const opt = {
+      margin:       10,
+      filename:     filename,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    html2pdf().set(opt).from(element).save();
   };
 
   return (
@@ -62,9 +74,11 @@ export default function PatientDetail({
             </button>
           </div>
         </div>
+      </div>
 
-      {/* Patient Info Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div id="patient-history-content" className="space-y-6">
+        {/* Patient Info Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
             <User className="w-8 h-8" />
@@ -163,7 +177,7 @@ export default function PatientDetail({
       </div>
 
       {/* Hidden container for PDF generation */}
-      <div className="hidden print:block absolute top-0 left-0 w-full bg-white text-black font-sans">
+      <div className="hidden print:block absolute top-0 left-0 w-full bg-white text-black font-sans text-[12px]">
         <div id="print-all-records" className="w-full">
           {sortedRecords.map((record, index) => (
             <div key={`print-${record.id}`} className={`p-8 ${index > 0 ? 'break-before-page' : ''}`}>
@@ -188,24 +202,24 @@ export default function PatientDetail({
               </div>
               
               {/* NANDAs */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {record.nandas.map(nanda => (
-                  <div key={nanda.code} className="border border-slate-200 rounded-lg p-4">
-                    <h4 className="font-bold text-blue-900 mb-2">NANDA [{nanda.code}] - {nanda.name}</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                  <div key={nanda.code} className="border border-slate-200 rounded-lg p-3 mb-3">
+                    <h4 className="font-bold text-blue-900 mb-1 text-sm">NANDA [{nanda.code}] - {nanda.name}</h4>
+                    <div className="grid grid-cols-2 gap-4 text-[11px] mb-3 break-inside-avoid">
                       <div><p className="font-bold text-slate-700">Características (m/p):</p><ul className="list-disc pl-4 text-slate-600">{nanda.selectedCharacteristics.map((c,i)=><li key={i}>{c}</li>)}</ul></div>
                       <div><p className="font-bold text-slate-700">Factores (r/c):</p><ul className="list-disc pl-4 text-slate-600">{nanda.selectedFactors.map((f,i)=><li key={i}>{f}</li>)}</ul></div>
                     </div>
                     {nanda.selectedNOCs.map(noc => (
-                      <div key={noc.code} className="bg-emerald-50 p-3 rounded border border-emerald-100 mb-2">
-                        <div className="flex justify-between font-bold text-emerald-900 mb-2">
+                      <div key={noc.code} className="bg-emerald-50 p-2 rounded border border-emerald-100 mb-2 break-inside-avoid">
+                        <div className="flex justify-between font-bold text-emerald-900 mb-1 text-[12px]">
                           <span>NOC [{noc.code}] - {noc.name}</span>
-                          <span>Inicial: {noc.initialRating} {noc.finalRating ? `| Final: ${noc.finalRating}` : ''}</span>
+                          <span className="text-[11px]">Inicial: {noc.initialRating} {noc.finalRating ? `| Final: ${noc.finalRating}` : ''}</span>
                         </div>
                         {noc.selectedNICs.map(nic => (
-                          <div key={nic.code} className="bg-white p-2 rounded border border-amber-100 mb-2">
-                            <p className="font-bold text-amber-900 text-sm">NIC [{nic.code}] - {nic.name}</p>
-                            <ul className="list-disc pl-4 text-xs mt-1 text-slate-600">{nic.activities.map((a,i)=><li key={i}>{a}</li>)}</ul>
+                          <div key={nic.code} className="bg-white p-1.5 rounded border border-amber-100 mb-1">
+                            <p className="font-bold text-amber-900 text-[11px]">NIC [{nic.code}] - {nic.name}</p>
+                            <ul className="list-disc pl-4 text-[10px] mt-0.5 text-slate-600">{nic.activities.map((a,i)=><li key={i}>{a}</li>)}</ul>
                           </div>
                         ))}
                       </div>

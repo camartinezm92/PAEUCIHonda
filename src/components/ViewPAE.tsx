@@ -1,6 +1,7 @@
 import React from 'react';
 import { PAERecord } from '../types';
 import { FileText, Download, ArrowLeft, CheckCircle, Clock } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
 interface ViewPAEProps {
   record: PAERecord;
@@ -9,10 +10,21 @@ interface ViewPAEProps {
 
 export default function ViewPAE({ record, onBack }: ViewPAEProps) {
   const handleDownloadPDF = () => {
-    const originalTitle = document.title;
-    document.title = `PAE_${record.patient.name.replace(/\s+/g, '_')}_${new Date(record.date).toISOString().split('T')[0]}`;
-    window.print();
-    document.title = originalTitle;
+    const element = document.getElementById('pae-pdf-content');
+    if (!element) return;
+    
+    const filename = `PAE_${record.patient.name.replace(/\s+/g, '_')}_${new Date(record.date).toISOString().split('T')[0]}.pdf`;
+    
+    const opt = {
+      margin:       10,
+      filename:     filename,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    html2pdf().set(opt).from(element).save();
   };
 
   return (
@@ -36,7 +48,7 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-8 print:border-none print:shadow-none print:p-0">
+      <div id="pae-pdf-content" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden p-8 print:border-none print:shadow-none print:p-0 text-[13px]">
         {/* Header */}
         <div className="border-b border-slate-200 pb-6 mb-6 flex justify-between items-start">
           <div>
@@ -102,12 +114,12 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
           <h3 className="text-lg font-bold text-slate-800 mb-3 border-b pb-2">Diagnósticos y Plan de Cuidados</h3>
           
           {record.nandas.map(nanda => (
-            <div key={nanda.code} className="border border-slate-200 rounded-lg overflow-hidden">
-              <div className="bg-slate-100 p-3 border-b border-slate-200">
-                <h4 className="font-bold text-slate-800">NANDA [{nanda.code}] - {nanda.name}</h4>
+            <div key={nanda.code} className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+              <div className="bg-slate-100 p-2 border-b border-slate-200">
+                <h4 className="font-bold text-slate-800 text-sm">NANDA [{nanda.code}] - {nanda.name}</h4>
               </div>
-              <div className="p-4 space-y-4">
-                <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div className="p-3 space-y-3">
+                <div className="grid md:grid-cols-2 gap-4 text-[12px] break-inside-avoid">
                   <div>
                     <p className="font-semibold text-slate-700 mb-1">Características Definitorias (m/p):</p>
                     <ul className="list-disc list-inside text-slate-600">
@@ -123,19 +135,19 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
                 </div>
 
                 {nanda.selectedNOCs.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-100">
-                    <p className="font-semibold text-slate-800 mb-3">Resultados (NOC) e Intervenciones (NIC)</p>
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <p className="font-semibold text-slate-800 mb-2 text-sm">Resultados (NOC) e Intervenciones (NIC)</p>
                     <div className="space-y-3">
                       {nanda.selectedNOCs.map(noc => (
-                        <div key={noc.code} className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
-                          <div className="flex justify-between items-start mb-2">
-                            <h5 className="font-semibold text-emerald-900">NOC [{noc.code}] - {noc.name}</h5>
-                            <div className="flex gap-3 text-sm font-medium">
-                              <span className="bg-white px-2 py-1 rounded border border-emerald-200 text-emerald-800">
+                        <div key={noc.code} className="bg-emerald-50 p-2 rounded-lg border border-emerald-100 break-inside-avoid">
+                          <div className="flex justify-between items-start mb-1">
+                            <h5 className="font-semibold text-emerald-900 text-sm">NOC [{noc.code}] - {noc.name}</h5>
+                            <div className="flex gap-2 text-[11px] font-medium">
+                              <span className="bg-white px-1.5 py-0.5 rounded border border-emerald-200 text-emerald-800">
                                 Inicial: {noc.initialRating}
                               </span>
                               {noc.finalRating && (
-                                <span className="bg-emerald-600 px-2 py-1 rounded text-white">
+                                <span className="bg-emerald-600 px-1.5 py-0.5 rounded text-white">
                                   Final: {noc.finalRating}
                                 </span>
                               )}
@@ -143,11 +155,11 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
                           </div>
                           
                           {noc.selectedNICs.length > 0 && (
-                            <div className="mt-3 pl-3 border-l-2 border-emerald-200 space-y-2">
+                            <div className="mt-2 pl-2 border-l-2 border-emerald-200 space-y-1">
                               {noc.selectedNICs.map(nic => (
-                                <div key={nic.code} className="bg-white p-2 rounded border border-amber-100">
-                                  <h6 className="font-semibold text-amber-900 text-sm">NIC [{nic.code}] - {nic.name}</h6>
-                                  <ul className="list-disc list-inside text-xs text-slate-600 mt-1">
+                                <div key={nic.code} className="bg-white p-1.5 rounded border border-amber-100">
+                                  <h6 className="font-semibold text-amber-900 text-[12px]">NIC [{nic.code}] - {nic.name}</h6>
+                                  <ul className="list-disc list-inside text-[11px] text-slate-600 mt-0.5">
                                     {nic.activities.map((act, i) => <li key={i}>{act}</li>)}
                                   </ul>
                                 </div>
