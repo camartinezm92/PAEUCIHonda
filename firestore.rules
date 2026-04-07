@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: pae_records
+    // Document ID: UUID
+    // Fields:
+    //   - id: string
+    //   - date: string (ISO 8601)
+    //   - status: string ('INICIADA' or 'CERRADA')
+    //   - patient: map (name, id, age, sex, service, medicalDiagnosis)
+    //   - needs: list of strings
+    //   - otherNeed: string (optional)
+    //   - nandas: list of minified objects
+    //   - evaluator: string
+    //   - observations: string
+    //   - userId: string (owner UID)
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == request.resource.data.userId;
+    }
+
+    function uidUnchanged() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    }
+
+    function isValidPAERecord() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'date', 'status', 'patient', 'needs', 'nandas', 'evaluator', 'userId']) &&
+             data.status in ['INICIADA', 'CERRADA'] &&
+             data.patient is map &&
+             data.patient.keys().hasAll(['name', 'id', 'service', 'medicalDiagnosis']) &&
+             data.patient.name is string && data.patient.name.size() < 100 &&
+             data.patient.id is string && data.patient.id.size() < 50 &&
+             data.needs is list && data.needs.size() <= 20 &&
+             data.nandas is list && data.nandas.size() <= 50 &&
+             data.evaluator is string && data.evaluator.size() < 100 &&
+             (!('observations' in data) || (data.observations is string && data.observations.size() < 2000)) &&
+             (!('otherNeed' in data) || (data.otherNeed is string && data.otherNeed.size() < 200));
+    }
+
+    match /pae_records/{recordId} {
+      allow read: if isOwner();
+      allow create: if isAuthenticated() && isDocOwner() && isValidPAERecord();
+      allow update: if isOwner() && uidNotModified() && isValidPAERecord();
+      allow delete: if isOwner();
+    }
+
+    match /app_settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+  }
+}

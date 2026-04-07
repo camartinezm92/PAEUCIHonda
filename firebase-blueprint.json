@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "PatientInfo": {
+      "title": "PatientInfo",
+      "description": "Basic information about the patient",
+      "type": "object",
+      "properties": {
+        "service": { "type": "string" },
+        "name": { "type": "string" },
+        "id": { "type": "string" },
+        "age": { "type": "number" },
+        "sex": { "type": "string" },
+        "medicalDiagnosis": { "type": "string" }
+      },
+      "required": ["service", "name", "id", "medicalDiagnosis"]
+    },
+    "MinifiedNOC": {
+      "title": "MinifiedNOC",
+      "description": "Minified NOC data",
+      "type": "object",
+      "properties": {
+        "c": { "type": "string", "description": "NOC Code" },
+        "i": { "type": "number", "description": "Initial Rating" },
+        "f": { "type": "number", "description": "Final Rating" },
+        "ni": { "type": "array", "items": { "type": "string" }, "description": "Array of NIC codes" }
+      },
+      "required": ["c", "i", "ni"]
+    },
+    "MinifiedNANDA": {
+      "title": "MinifiedNANDA",
+      "description": "Minified NANDA data",
+      "type": "object",
+      "properties": {
+        "c": { "type": "string", "description": "NANDA Code" },
+        "ch": { "type": "array", "items": { "type": "string" }, "description": "Characteristics" },
+        "f": { "type": "array", "items": { "type": "string" }, "description": "Factors" },
+        "no": { "type": "array", "items": { "$ref": "#/entities/MinifiedNOC" } }
+      },
+      "required": ["c", "ch", "f", "no"]
+    },
+    "PAERecord": {
+      "title": "PAERecord",
+      "description": "A complete PAE record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["INICIADA", "CERRADA"] },
+        "patient": { "$ref": "#/entities/PatientInfo" },
+        "needs": { "type": "array", "items": { "type": "string" } },
+        "otherNeed": { "type": "string" },
+        "nandas": { "type": "array", "items": { "$ref": "#/entities/MinifiedNANDA" } },
+        "evaluator": { "type": "string" },
+        "observations": { "type": "string" },
+        "userId": { "type": "string", "description": "ID of the user who created the record" }
+      },
+      "required": ["id", "date", "status", "patient", "needs", "nandas", "evaluator", "userId"]
+    }
+  },
+  "firestore": {
+    "/pae_records/{recordId}": {
+      "schema": { "$ref": "#/entities/PAERecord" },
+      "description": "Stores all PAE records"
+    }
+  }
+}
