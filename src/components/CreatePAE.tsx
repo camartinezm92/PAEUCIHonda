@@ -18,6 +18,7 @@ interface CreatePAEProps {
 
 export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps) {
   const { taxonomy } = useDictionary();
+  const [isSaving, setIsSaving] = useState(false);
   
   // Patient State
   const [patient, setPatient] = useState<PatientInfo>({
@@ -166,13 +167,13 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
       newNics = [...noc.selectedNICs, {
         code: nic.code,
         name: nic.name,
-        activities: nic.activities
+        activities: [] // Start with no activities selected
       }];
     }
     updateNoc(nandaCode, nocCode, { selectedNICs: newNics });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Basic validation
@@ -181,6 +182,7 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
       return;
     }
 
+    setIsSaving(true);
     const newRecord: PAERecord = {
       id: uuidv4(),
       date: new Date().toISOString(),
@@ -193,7 +195,11 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
       observations
     };
 
-    onSave(newRecord);
+    try {
+      await onSave(newRecord);
+    } catch (error) {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -554,11 +560,28 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                                         <h6 className="font-bold text-sm text-amber-900 mb-2">
                                           NIC [{nic.code}] - {nic.name}
                                         </h6>
-                                        <ul className="list-disc list-inside text-xs text-slate-600 space-y-1">
-                                          {nic.activities.map((act, i) => (
-                                            <li key={i}>{act}</li>
+                                        <div className="space-y-1">
+                                          {nocDef.nics.find((n: any) => n.code === nic.code)?.activities.map((act: string, i: number) => (
+                                            <label key={i} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-amber-50 p-1 rounded">
+                                              <input 
+                                                type="checkbox" 
+                                                className="mt-0.5 rounded border-slate-300 text-amber-600"
+                                                checked={nic.activities.includes(act)}
+                                                onChange={(e) => {
+                                                  const newActivities = e.target.checked 
+                                                    ? [...nic.activities, act]
+                                                    : nic.activities.filter(a => a !== act);
+                                                  
+                                                  const newNics = noc.selectedNICs.map(n => 
+                                                    n.code === nic.code ? { ...n, activities: newActivities } : n
+                                                  );
+                                                  updateNoc(nanda.code, noc.code, { selectedNICs: newNics });
+                                                }}
+                                              />
+                                              <span className="text-slate-600">{act}</span>
+                                            </label>
                                           ))}
-                                        </ul>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
@@ -604,22 +627,33 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
           </div>
         </div>
 
-        <div className="mt-8 flex justify-end gap-4">
-          <button 
-            type="button" 
-            onClick={onCancel}
-            className="px-6 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button 
-            type="submit"
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <Save className="w-4 h-4" />
-            Iniciar PAE
-          </button>
-        </div>
+          <div className="mt-8 flex justify-end gap-4">
+            <button 
+              type="button" 
+              onClick={onCancel}
+              disabled={isSaving}
+              className="px-6 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit"
+              disabled={isSaving}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Iniciando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Iniciar PAE
+                </>
+              )}
+            </button>
+          </div>
       </section>
     </form>
   );

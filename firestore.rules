@@ -23,8 +23,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email.lower() == 'camartinezm92@gmail.com' ||
+        request.auth.token.email.lower() == 'ingbiomedico@ucihonda.com.co' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+         get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'admin')
+      );
+    }
+
+    function isNurse() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'nurse';
+    }
+
     function isOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.userId;
+      return isAuthenticated() && 
+             resource != null && 
+             'userId' in resource.data && 
+             request.auth.uid == resource.data.userId;
     }
 
     function isDocOwner() {
@@ -36,7 +54,7 @@ service cloud.firestore {
     }
 
     function uidNotModified() {
-      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+      return !resource || !('userId' in resource.data) || !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
     }
 
     function isValidPAERecord() {
@@ -55,15 +73,37 @@ service cloud.firestore {
     }
 
     match /pae_records/{recordId} {
-      allow read: if isOwner();
+      allow read: if isOwner() || isNurse() || isAdmin();
       allow create: if isAuthenticated() && isDocOwner() && isValidPAERecord();
-      allow update: if isOwner() && uidNotModified() && isValidPAERecord();
-      allow delete: if isOwner();
+      allow update: if (isOwner() || isNurse() || isAdmin()) && uidNotModified() && isValidPAERecord();
+      allow delete: if isOwner() || isAdmin();
     }
 
     match /app_settings/{settingId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      // Allow anyone to read settings (like the dictionary) to avoid boot errors
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /users/{userEmail} {
+      // Allow listing users if authenticated (to avoid permission errors in UserManagement)
+      // But specific 'get' still requires being the user or an admin
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated() && (request.auth.token.email.lower() == userEmail.lower() || isAdmin());
+      
+      // Allow creating your own profile
+      // If not a master admin, the role MUST be 'viewer'
+      allow create: if isAuthenticated() && 
+                    request.auth.token.email.lower() == userEmail.lower() &&
+                    (request.resource.data.role == 'viewer' || 
+                     request.auth.token.email.lower() == 'camartinezm92@gmail.com' ||
+                     request.auth.token.email.lower() == 'ingbiomedico@ucihonda.com.co');
+      
+      // Allow updates if you are an admin OR (it's your own profile AND you don't change your role)
+      allow update: if isAuthenticated() && (isAdmin() || (request.auth.token.email.lower() == userEmail.lower() && request.resource.data.role == resource.data.role));
+      
+      // Only admins can delete users
+      allow delete: if isAdmin();
     }
   }
 }

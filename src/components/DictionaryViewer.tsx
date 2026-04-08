@@ -22,6 +22,15 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
   const [editError, setEditError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const typeLabels: Record<SearchType, string> = {
+    ALL: 'Todos',
+    DOMAIN: 'DOMINIO',
+    CLASS: 'CLASE',
+    NANDA: 'NANDA',
+    NOC: 'NOC',
+    NIC: 'NIC'
+  };
+
   const flattened = useMemo(() => {
     const items: any[] = [];
     taxonomy.forEach(d => {
@@ -178,7 +187,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {type === 'ALL' ? 'Todos' : type}
+                  {typeLabels[type]}
                 </button>
               ))}
             </div>
@@ -205,7 +214,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-blue-600">{item.type}</span>
+                      <span className="text-xs font-bold text-blue-600">{typeLabels[item.type]}</span>
                       <span className="text-xs text-slate-500 font-mono">{item.id}</span>
                     </div>
                     <div className="font-medium text-slate-800 line-clamp-2">{item.name}</div>
@@ -237,7 +246,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                   {!isEditing && (
                     <>
                       <h2 className="text-2xl font-bold text-slate-800 mb-2">
-                        <span className="text-blue-600 mr-2">[{selectedItem.type}]</span>
+                        <span className="text-blue-600 mr-2">[{typeLabels[selectedItem.type]}]</span>
                         {selectedItem.name}
                       </h2>
                       <div className="text-sm font-mono text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded">
@@ -296,7 +305,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
               {isEditing ? (
                 <div className="space-y-4 bg-slate-50 p-6 rounded-xl border border-slate-200">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-slate-800">Modificar {selectedItem.type}</h3>
+                    <h3 className="font-bold text-lg text-slate-800">Modificar {typeLabels[selectedItem.type]}</h3>
                     <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600">
                       <X className="w-5 h-5" />
                     </button>

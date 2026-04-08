@@ -9,12 +9,66 @@ import AuthModal from './components/AuthModal';
 import ConfirmModal from './components/ConfirmModal';
 import DictionaryManager from './components/DictionaryManager';
 import DictionaryViewer from './components/DictionaryViewer';
+import UserManagement from './components/UserManagement';
 import { useDictionary } from './contexts/DictionaryContext';
-import { Activity, LogOut, Database, BookOpen } from 'lucide-react';
-import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, query, where, onSnapshot, doc, setDoc, deleteDoc } from './firebase';
+import { Activity, LogOut, Database, BookOpen, Users, Shield } from 'lucide-react';
+import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, query, where, onSnapshot, doc, setDoc, deleteDoc, getDoc } from './firebase';
 import { minifyRecord, expandRecord } from './utils/paeMinifier';
+import { ToastContainer, ToastType } from './components/Toast';
+import { UserProfile } from './types';
 
-type ViewState = 'DASHBOARD' | 'CREATE' | 'CLOSE' | 'PATIENT_DETAIL' | 'VIEW_PAE' | 'DICTIONARY' | 'LIBRARY';
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+type ViewState = 'DASHBOARD' | 'CREATE' | 'CLOSE' | 'PATIENT_DETAIL' | 'VIEW_PAE' | 'DICTIONARY' | 'LIBRARY' | 'USERS';
 
 function App() {
   const { taxonomy, loading: loadingDict } = useDictionary();
@@ -23,20 +77,80 @@ function App() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   
-  // Auth Modal State (for adminpae actions)
-  const [authConfig, setAuthConfig] = useState<{ isOpen: boolean; onSuccess: () => void } | null>(null);
+  // Toast State
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
+
+  const showToast = (message: string, type: ToastType) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+  
+  // Auth Modal State (for admin actions)
+  const [authConfig, setAuthConfig] = useState<{ 
+    isOpen: boolean; 
+    onSuccess: () => void; 
+    type: 'dictionary' | 'users' 
+  } | null>(null);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [isUserAdminAuthenticated, setIsUserAdminAuthenticated] = useState(false);
   
   // Confirm Modal State
   const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
 
   // Firebase Auth State
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        console.log("User logged in:", currentUser.email);
+        // Load user profile from Firestore
+        const userEmail = currentUser.email?.toLowerCase() || '';
+        try {
+          const userDoc = await getDoc(doc(db, 'users', userEmail));
+          if (userDoc.exists()) {
+            const profile = userDoc.data() as UserProfile;
+            console.log("User profile loaded:", profile.role);
+            setUserProfile(profile);
+          } else {
+            // Default profile for first-time users or unlisted users
+            // If it's the owner email, make them admin automatically
+            const isMasterAdmin = ['camartinezm92@gmail.com', 'ingbiomedico@ucihonda.com.co'].includes(currentUser.email?.toLowerCase() || '');
+            const profile: UserProfile = {
+              uid: currentUser.uid,
+              email: currentUser.email || '',
+              displayName: currentUser.displayName || 'Usuario',
+              role: isMasterAdmin ? 'admin' : 'viewer', // Default role is viewer (observer)
+              createdAt: new Date().toISOString()
+            };
+            try {
+              await setDoc(doc(db, 'users', userEmail), profile);
+              setUserProfile(profile);
+            } catch (setErr) {
+              handleFirestoreError(setErr, OperationType.WRITE, `users/${userEmail}`);
+            }
+          }
+        } catch (e) {
+          console.error("Error loading user profile", e);
+          // If it's already a JSON error from handleFirestoreError, don't wrap it again
+          if (!(e instanceof Error && e.message.startsWith('{'))) {
+            try {
+              handleFirestoreError(e, OperationType.GET, `users/${userEmail}`);
+            } catch (handledErr) {
+              // We just want to log it
+            }
+          }
+        }
+      } else {
+        setUserProfile(null);
+      }
       setLoadingAuth(false);
     });
     return () => unsubscribe();
@@ -48,7 +162,14 @@ function App() {
       return;
     }
 
-    const q = query(collection(db, 'pae_records'), where('userId', '==', user.uid));
+    // Admins see all records, others see only theirs (or based on role)
+    let q;
+    if (userProfile?.role === 'admin') {
+      q = query(collection(db, 'pae_records'));
+    } else {
+      q = query(collection(db, 'pae_records'), where('userId', '==', user.uid));
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loadedRecords: PAERecord[] = [];
       snapshot.forEach((docSnap) => {
@@ -61,6 +182,11 @@ function App() {
       setRecords(loadedRecords);
     }, (error) => {
       console.error("Firestore error:", error);
+      try {
+        handleFirestoreError(error, OperationType.LIST, 'pae_records');
+      } catch (e) {
+        // Logged already
+      }
     });
 
     return () => unsubscribe();
@@ -82,14 +208,21 @@ function App() {
     }
   };
 
-  const requireAuth = (onSuccess: () => void) => {
-    if (isAdminAuthenticated) {
+  const requireAuth = (onSuccess: () => void, type: 'dictionary' | 'users' = 'dictionary') => {
+    if (type === 'dictionary' && isAdminAuthenticated) {
+      onSuccess();
+    } else if (type === 'users' && isUserAdminAuthenticated) {
       onSuccess();
     } else {
       setAuthConfig({ 
         isOpen: true, 
+        type,
         onSuccess: () => {
-          setIsAdminAuthenticated(true);
+          if (type === 'users') {
+            setIsUserAdminAuthenticated(true);
+          } else {
+            setIsAdminAuthenticated(true);
+          }
           onSuccess();
         } 
       });
@@ -101,10 +234,14 @@ function App() {
     try {
       const minified = minifyRecord(record, user.uid);
       await setDoc(doc(db, 'pae_records', record.id), minified);
+      showToast("PAE iniciado exitosamente", "success");
       setCurrentView('DASHBOARD');
     } catch (error) {
       console.error("Error saving PAE", error);
-      alert("Error al guardar el PAE en la nube.");
+      showToast("Error al guardar el PAE", "error");
+      try {
+        handleFirestoreError(error, OperationType.WRITE, `pae_records/${record.id}`);
+      } catch (e) {}
     }
   };
 
@@ -113,11 +250,15 @@ function App() {
     try {
       const minified = minifyRecord(updatedRecord, user.uid);
       await setDoc(doc(db, 'pae_records', updatedRecord.id), minified);
+      showToast("PAE evaluado y cerrado correctamente", "success");
       setCurrentView('PATIENT_DETAIL');
       setSelectedRecordId(null);
     } catch (error) {
       console.error("Error closing PAE", error);
-      alert("Error al cerrar el PAE en la nube.");
+      showToast("Error al cerrar el PAE", "error");
+      try {
+        handleFirestoreError(error, OperationType.WRITE, `pae_records/${updatedRecord.id}`);
+      } catch (e) {}
     }
   };
 
@@ -152,9 +293,13 @@ function App() {
         onConfirm: async () => {
           try {
             await deleteDoc(doc(db, 'pae_records', id));
+            showToast("PAE eliminado correctamente", "success");
           } catch (error) {
             console.error("Error deleting PAE", error);
-            alert("Error al eliminar el PAE.");
+            showToast("Error al eliminar el PAE", "error");
+            try {
+              handleFirestoreError(error, OperationType.DELETE, `pae_records/${id}`);
+            } catch (e) {}
           }
         }
       });
@@ -173,11 +318,15 @@ function App() {
             for (const record of patientRecords) {
               await deleteDoc(doc(db, 'pae_records', record.id));
             }
+            showToast("Paciente y registros eliminados", "success");
             setCurrentView('DASHBOARD');
             setSelectedPatientId(null);
           } catch (error) {
             console.error("Error deleting patient records", error);
-            alert("Error al eliminar los registros del paciente.");
+            showToast("Error al eliminar el paciente", "error");
+            try {
+              handleFirestoreError(error, OperationType.DELETE, `pae_records (multiple)`);
+            } catch (e) {}
           }
         }
       });
@@ -235,6 +384,35 @@ function App() {
     );
   }
 
+  const masterAdmins = ['camartinezm92@gmail.com', 'ingbiomedico@ucihonda.com.co'];
+  const showUsersButton = userProfile?.role === 'admin' || masterAdmins.includes(user?.email?.toLowerCase() || '');
+  console.log("Show users button:", showUsersButton, "Role:", userProfile?.role, "Email:", user?.email);
+
+  if (user && userProfile?.role === 'viewer') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-100">
+          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Shield className="w-8 h-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">Acceso Pendiente</h1>
+          <p className="text-slate-600 mb-6">
+            Hola <strong>{user.displayName}</strong>. Tu solicitud de acceso ha sido registrada correctamente.
+          </p>
+          <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl text-sm text-amber-800 mb-8">
+            Un administrador debe autorizar tu cuenta y asignarte un rol (Enfermero o Administrador) antes de que puedas usar el sistema.
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-300 transition-colors"
+          >
+            <LogOut className="w-5 h-5" /> Cerrar Sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* Navbar */}
@@ -279,6 +457,16 @@ function App() {
               >
                 <Database className="w-4 h-4" /> Agregar Info
               </button>
+              {showUsersButton && (
+                <button 
+                  onClick={() => {
+                    requireAuth(() => setCurrentView('USERS'), 'users');
+                  }}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'USERS' ? 'bg-blue-800' : 'hover:bg-blue-600'}`}
+                >
+                  <Users className="w-4 h-4" /> Usuarios
+                </button>
+              )}
               <button 
                 onClick={handleLogout}
                 className="ml-2 p-2 rounded-md text-blue-200 hover:text-white hover:bg-blue-800 transition-colors"
@@ -296,8 +484,11 @@ function App() {
         {currentView === 'DICTIONARY' && (
           <DictionaryManager onBack={() => setCurrentView('DASHBOARD')} />
         )}
+        {currentView === 'USERS' && (
+          <UserManagement onBack={() => setCurrentView('DASHBOARD')} showToast={showToast} />
+        )}
         {currentView === 'LIBRARY' && (
-          <DictionaryViewer onBack={() => setCurrentView('DASHBOARD')} requireAuth={requireAuth} />
+          <DictionaryViewer onBack={() => setCurrentView('DASHBOARD')} requireAuth={(cb) => requireAuth(cb, 'dictionary')} />
         )}
         {currentView === 'DASHBOARD' && (
           <Dashboard records={records} onSelectPatient={navigateToPatient} />
@@ -335,6 +526,7 @@ function App() {
       {/* Auth Modal */}
       <AuthModal 
         isOpen={!!authConfig?.isOpen} 
+        type={authConfig?.type}
         onClose={() => setAuthConfig(null)} 
         onSuccess={() => {
           if (authConfig?.onSuccess) authConfig.onSuccess();
@@ -352,6 +544,8 @@ function App() {
         }}
         onCancel={() => setConfirmConfig(null)}
       />
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }

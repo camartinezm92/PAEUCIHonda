@@ -12,6 +12,7 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
   // We need to keep track of the final ratings for all NOCs in this record
   const [nandas, setNandas] = useState<SelectedNANDA[]>(record.nandas);
   const [observations, setObservations] = useState(record.observations || '');
+  const [isSaving, setIsSaving] = useState(false);
 
   const updateFinalRating = (nandaCode: string, nocCode: string, rating: number) => {
     setNandas(nandas.map(nanda => {
@@ -30,7 +31,7 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Check if all NOCs have a final rating
@@ -46,6 +47,7 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
       return;
     }
 
+    setIsSaving(true);
     const updatedRecord: PAERecord = {
       ...record,
       nandas,
@@ -53,7 +55,11 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
       status: 'CERRADA'
     };
 
-    onSave(updatedRecord);
+    try {
+      await onSave(updatedRecord);
+    } catch (error) {
+      setIsSaving(false);
+    }
   };
 
   // Only show NANDAs that have selected NOCs
@@ -141,17 +147,28 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
             <button 
               type="button" 
               onClick={onCancel}
-              className="px-6 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors flex items-center gap-2"
+              disabled={isSaving}
+              className="px-6 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               <XCircle className="w-4 h-4" />
               Cancelar
             </button>
             <button 
               type="submit"
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+              disabled={isSaving}
+              className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save className="w-4 h-4" />
-              Guardar y Cerrar PAE
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Guardar y Cerrar PAE
+                </>
+              )}
             </button>
           </div>
         </form>

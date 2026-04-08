@@ -55,12 +55,33 @@
         "userId": { "type": "string", "description": "ID of the user who created the record" }
       },
       "required": ["id", "date", "status", "patient", "needs", "nandas", "evaluator", "userId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "nurse", "viewer"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt"]
     }
   },
   "firestore": {
     "/pae_records/{recordId}": {
       "schema": { "$ref": "#/entities/PAERecord" },
       "description": "Stores all PAE records"
+    },
+    "/users/{userEmail}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profiles and roles"
+    },
+    "/app_settings/{settingId}": {
+      "schema": "object",
+      "description": "Stores global application settings like the dictionary"
     }
   }
 }

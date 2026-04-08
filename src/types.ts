@@ -70,6 +70,14 @@ export interface SelectedNANDA {
   selectedNOCs: SelectedNOC[];
 }
 
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'nurse' | 'viewer';
+  createdAt: string;
+}
+
 export interface PAERecord {
   id: string;
   date: string;
@@ -80,4 +88,5 @@ export interface PAERecord {
   nandas: SelectedNANDA[];
   evaluator: string;
   observations: string;
+  userId?: string;
 }

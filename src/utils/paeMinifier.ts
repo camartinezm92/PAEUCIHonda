@@ -1,6 +1,6 @@
 import { PAERecord, SelectedNANDA, SelectedNOC, SelectedNIC, TaxonomyDomain } from '../types';
 
-export const minifyRecord = (record: PAERecord, userId: string): any => {
+export const minifyRecord = (record: PAERecord, fallbackUserId: string): any => {
   return {
     id: record.id,
     date: record.date,
@@ -10,7 +10,7 @@ export const minifyRecord = (record: PAERecord, userId: string): any => {
     otherNeed: record.otherNeed || '',
     evaluator: record.evaluator,
     observations: record.observations || '',
-    userId: userId,
+    userId: record.userId || fallbackUserId,
     nandas: record.nandas.map(n => ({
       c: n.code,
       ch: n.selectedCharacteristics,
@@ -45,6 +45,7 @@ export const expandRecord = (minified: any, taxonomy: TaxonomyDomain[]): PAEReco
     otherNeed: minified.otherNeed || '',
     evaluator: minified.evaluator || '',
     observations: minified.observations || '',
+    userId: minified.userId,
     nandas: (minified.nandas || []).map((mn: any): SelectedNANDA => {
       const nandaDef = getNandaDef(mn.c);
       

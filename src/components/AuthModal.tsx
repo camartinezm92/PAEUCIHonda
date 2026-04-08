@@ -5,9 +5,10 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  type?: 'dictionary' | 'users';
 }
 
-export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, onSuccess, type = 'dictionary' }: AuthModalProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,7 +17,15 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === 'adminpae' && password === 'adminpae') {
+    
+    let isValid = false;
+    if (type === 'users') {
+      isValid = username === 'adminadminpae' && password === 'adminadminpae';
+    } else {
+      isValid = username === 'adminpae' && password === 'adminpae';
+    }
+
+    if (isValid) {
       setError('');
       setUsername('');
       setPassword('');

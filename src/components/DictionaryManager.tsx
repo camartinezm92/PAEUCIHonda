@@ -41,6 +41,7 @@ interface DictionaryManagerProps {
 export default function DictionaryManager({ onBack }: DictionaryManagerProps) {
   const { taxonomy, loading, error: contextError, updateTaxonomy } = useDictionary();
   const [activeForm, setActiveForm] = useState<FormType>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -83,6 +84,7 @@ export default function DictionaryManager({ onBack }: DictionaryManagerProps) {
 
   const handleSave = async () => {
     try {
+      setIsSaving(true);
       setError(null);
       setSuccess(null);
       
@@ -174,11 +176,17 @@ export default function DictionaryManager({ onBack }: DictionaryManagerProps) {
       }
 
       await updateTaxonomy(newTaxonomy);
-      setSuccess(`Guardado exitosamente en la nube (${items.length} elemento${items.length > 1 ? 's' : ''})`);
+      const msg = `Guardado exitosamente: ${items.length} elemento${items.length > 1 ? 's' : ''} agregado${items.length > 1 ? 's' : ''}`;
+      setSuccess(msg);
       resetForm();
+      
+      // Auto-clear success after 5 seconds
+      setTimeout(() => setSuccess(null), 5000);
       
     } catch (err: any) {
       setError(err.message || 'Error al guardar');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -430,9 +438,19 @@ export default function DictionaryManager({ onBack }: DictionaryManagerProps) {
             <div className="pt-6 mt-6 border-t border-slate-200 flex justify-end">
               <button 
                 onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
+                disabled={isSaving}
+                className={`flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                <Save className="w-5 h-5" /> Guardar todo en la Nube
+                {isSaving ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" /> Guardar todo en la Nube
+                  </>
+                )}
               </button>
             </div>
           </div>
