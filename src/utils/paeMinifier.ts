@@ -19,7 +19,10 @@ export const minifyRecord = (record: PAERecord, fallbackUserId: string): any => 
         c: noc.code,
         i: noc.initialRating,
         f: noc.finalRating || null,
-        ni: noc.selectedNICs.map(nic => nic.code)
+        ni: noc.selectedNICs.map(nic => ({
+          c: nic.code,
+          a: nic.activities
+        }))
       }))
     }))
   };
@@ -62,12 +65,19 @@ export const expandRecord = (minified: any, taxonomy: TaxonomyDomain[]): PAEReco
             name: nocDef ? nocDef.name : 'Desconocido',
             initialRating: mnoc.i,
             finalRating: mnoc.f,
-            selectedNICs: (mnoc.ni || []).map((nicCode: string): SelectedNIC => {
+            selectedNICs: (mnoc.ni || []).map((mnic: any): SelectedNIC => {
+              // Handle both old format (string) and new format (object)
+              const nicCode = typeof mnic === 'string' ? mnic : mnic.c;
+              const selectedActs = typeof mnic === 'string' ? [] : (mnic.a || []);
+              
               const nicDef = nocDef?.nics.find(n => n.code === nicCode);
               return {
                 code: nicCode,
                 name: nicDef ? nicDef.name : 'Desconocido',
-                activities: nicDef ? nicDef.activities : []
+                activities: selectedActs.length > 0 ? selectedActs : (nicDef ? [] : []) 
+                // If it's old format, we might want to show all or none. 
+                // Given the user's request, showing none (empty) is safer for "selected only".
+                // But wait, if it's old format, maybe they didn't have selection yet.
               };
             })
           };
