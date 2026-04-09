@@ -2,6 +2,7 @@ import React from 'react';
 import { PAERecord, PatientInfo } from '../types';
 import { User, Activity, Clock, CheckCircle, Eye, Trash2, Edit, Download } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import { getRecordEmoji, getPatientGlobalEmoji } from '../utils/emojiUtils';
 
 interface PatientDetailProps {
   patient: PatientInfo;
@@ -80,11 +81,16 @@ export default function PatientDetail({
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 relative">
             <User className="w-8 h-8" />
+            <span className="absolute -bottom-1 -right-1 text-xl bg-white rounded-full shadow-md w-8 h-8 flex items-center justify-center border border-slate-100">
+              {getPatientGlobalEmoji(records)}
+            </span>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{patient.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              {patient.name}
+            </h1>
             <p className="text-slate-500">ID: {patient.id}</p>
           </div>
         </div>
@@ -118,7 +124,10 @@ export default function PatientDetail({
         
         <div className="space-y-4">
           {sortedRecords.map(record => (
-            <div key={record.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div key={record.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2 opacity-20 pointer-events-none">
+                <span className="text-4xl">{getRecordEmoji(record)}</span>
+              </div>
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -127,6 +136,7 @@ export default function PatientDetail({
                     {record.status === 'INICIADA' ? <Clock className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
                     {record.status}
                   </span>
+                  <span className="text-2xl ml-1" title="Evolución del paciente">{getRecordEmoji(record)}</span>
                   <span className="text-sm text-slate-500 font-medium">
                     {new Date(record.date).toLocaleString()}
                   </span>
