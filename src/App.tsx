@@ -77,6 +77,20 @@ function App() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   
+  useEffect(() => {
+    const viewTitles: Record<ViewState, string> = {
+      'DASHBOARD': 'Inicio',
+      'CREATE': 'Nuevo PAE',
+      'CLOSE': 'Cerrar PAE',
+      'PATIENT_DETAIL': 'Detalle de Paciente',
+      'VIEW_PAE': 'Ver PAE',
+      'DICTIONARY': 'Gestionar Diccionario',
+      'LIBRARY': 'Biblioteca',
+      'USERS': 'Gestión de Usuarios'
+    };
+    document.title = `PAE - ${viewTitles[currentView] || 'Sistema'}`;
+  }, [currentView]);
+
   // Toast State
   const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
 
