@@ -53,11 +53,8 @@ export default function Dashboard({ records, onSelectPatient }: DashboardProps) 
             >
               <div className="p-5 flex-grow">
                 <div className="flex items-start gap-4 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-bold text-xl group-hover:bg-blue-200 transition-colors relative">
-                    {info.name.charAt(0).toUpperCase()}
-                    <span className="absolute -bottom-1 -right-1 text-base bg-white rounded-full shadow-sm w-6 h-6 flex items-center justify-center border border-slate-100">
-                      {getPatientGlobalEmoji(patientRecords)}
-                    </span>
+                  <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center text-3xl group-hover:bg-blue-100 transition-colors shadow-sm border border-blue-100">
+                    {getPatientGlobalEmoji(patientRecords)}
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-slate-900 leading-tight group-hover:text-blue-700 transition-colors">{info.name}</h3>

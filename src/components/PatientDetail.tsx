@@ -81,11 +81,8 @@ export default function PatientDetail({
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 relative">
-            <User className="w-8 h-8" />
-            <span className="absolute -bottom-1 -right-1 text-xl bg-white rounded-full shadow-md w-8 h-8 flex items-center justify-center border border-slate-100">
-              {getPatientGlobalEmoji(records)}
-            </span>
+          <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-4xl shadow-sm border border-blue-100">
+            {getPatientGlobalEmoji(records)}
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
