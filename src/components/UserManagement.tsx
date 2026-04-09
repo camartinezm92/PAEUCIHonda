@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db, collection, onSnapshot, doc, setDoc, deleteDoc, auth } from '../firebase';
 import { UserProfile } from '../types';
-import { Users, UserPlus, Shield, Trash2, Mail, User as UserIcon, Search, AlertCircle } from 'lucide-react';
+import { Users, UserPlus, Shield, Trash2, Mail, User as UserIcon, Search, AlertCircle, Download } from 'lucide-react';
+import { useDictionary } from '../contexts/DictionaryContext';
 
 enum OperationType {
   CREATE = 'create',
@@ -31,6 +32,7 @@ interface UserManagementProps {
 }
 
 export default function UserManagement({ onBack, showToast }: UserManagementProps) {
+  const { taxonomy } = useDictionary();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,6 +114,25 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
     }
   };
 
+  const handleDownloadBackup = () => {
+    try {
+      const dataStr = JSON.stringify(taxonomy, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `biblioteca_pae_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast("Respaldo de biblioteca descargado", "success");
+    } catch (error) {
+      console.error("Error downloading backup:", error);
+      showToast("Error al generar el respaldo", "error");
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     u.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
     u.displayName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -123,12 +144,21 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
           <Users className="text-blue-600" /> Gestión de Usuarios y Permisos
         </h1>
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <UserPlus className="w-4 h-4" /> Autorizar Usuario
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleDownloadBackup}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors shadow-sm"
+            title="Descargar respaldo de la biblioteca (Dominios, Clases, NANDA, NOC, NIC)"
+          >
+            <Download className="w-4 h-4" /> Descargar JSON Biblioteca
+          </button>
+          <button 
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <UserPlus className="w-4 h-4" /> Autorizar Usuario
+          </button>
+        </div>
       </div>
 
       <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3 text-amber-800">
