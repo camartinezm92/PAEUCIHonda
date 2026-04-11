@@ -34,15 +34,15 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
   const flattened = useMemo(() => {
     const items: any[] = [];
     taxonomy.forEach(d => {
-      items.push({ type: 'DOMAIN', id: d.id, name: d.name, path: [d.name], raw: d, parentIds: { domainId: d.id } });
+      items.push({ type: 'DOMAIN', id: d.id, uid: `DOMAIN-${d.id}`, name: d.name, path: [d.name], raw: d, parentIds: { domainId: d.id } });
       d.classes.forEach(c => {
-        items.push({ type: 'CLASS', id: c.id, name: c.name, path: [d.name, c.name], raw: c, parentIds: { domainId: d.id, classId: c.id } });
+        items.push({ type: 'CLASS', id: c.id, uid: `CLASS-${d.id}-${c.id}`, name: c.name, path: [d.name, c.name], raw: c, parentIds: { domainId: d.id, classId: c.id } });
         c.nandas.forEach(n => {
-          items.push({ type: 'NANDA', id: n.code, name: n.name, path: [d.name, c.name, n.name], raw: n, parentIds: { domainId: d.id, classId: c.id, nandaCode: n.code } });
+          items.push({ type: 'NANDA', id: n.code, uid: `NANDA-${n.code}`, name: n.name, path: [d.name, c.name, n.name], raw: n, parentIds: { domainId: d.id, classId: c.id, nandaCode: n.code } });
           n.nocs.forEach(no => {
-            items.push({ type: 'NOC', id: no.code, name: no.name, path: [d.name, c.name, n.name, `[${no.code}] ${no.name}`], raw: no, parentIds: { domainId: d.id, classId: c.id, nandaCode: n.code, nocCode: no.code } });
+            items.push({ type: 'NOC', id: no.code, uid: `NOC-${no.code}`, name: no.name, path: [d.name, c.name, n.name, `[${no.code}] ${no.name}`], raw: no, parentIds: { domainId: d.id, classId: c.id, nandaCode: n.code, nocCode: no.code } });
             no.nics.forEach(ni => {
-              items.push({ type: 'NIC', id: ni.code, name: ni.name, path: [d.name, c.name, n.name, `[${no.code}] ${no.name}`, `[${ni.code}] ${ni.name}`], raw: ni, parentIds: { domainId: d.id, classId: c.id, nandaCode: n.code, nocCode: no.code, nicCode: ni.code } });
+              items.push({ type: 'NIC', id: ni.code, uid: `NIC-${ni.code}`, name: ni.name, path: [d.name, c.name, n.name, `[${no.code}] ${no.name}`, `[${ni.code}] ${ni.name}`], raw: ni, parentIds: { domainId: d.id, classId: c.id, nandaCode: n.code, nocCode: no.code, nicCode: ni.code } });
             });
           });
         });
@@ -58,11 +58,24 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
       if (searchType !== 'ALL' && item.type !== searchType) return false;
       const q = searchQuery.toLowerCase();
       return item.id.toLowerCase().includes(q) || item.name.toLowerCase().includes(q);
+    }).sort((a, b) => {
+      const numA = parseInt(a.id.match(/\d+/)?.[0] || '0', 10);
+      const numB = parseInt(b.id.match(/\d+/)?.[0] || '0', 10);
+      return numA - numB || a.name.localeCompare(b.name);
     }).slice(0, 50);
   }, [flattened, searchQuery, searchType]);
 
-  const navigateTo = (type: SearchType, id: string) => {
-    const item = flattened.find(i => i.type === type && i.id === id);
+  const navigateTo = (type: SearchType, id: string, parentIds?: any) => {
+    const item = flattened.find(i => {
+      if (i.type !== type || i.id !== id) return false;
+      if (parentIds) {
+        if (parentIds.domainId && i.parentIds.domainId !== parentIds.domainId) return false;
+        if (parentIds.classId && i.parentIds.classId !== parentIds.classId) return false;
+        if (parentIds.nandaCode && i.parentIds.nandaCode !== parentIds.nandaCode) return false;
+        if (parentIds.nocCode && i.parentIds.nocCode !== parentIds.nocCode) return false;
+      }
+      return true;
+    });
     if (item) {
       setSelectedItem(item);
       setIsEditing(false);
@@ -514,7 +527,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                         {selectedItem.raw.nics?.map((nic: any, i: number) => (
                           <button 
                             key={i} 
-                            onClick={() => navigateTo('NIC', nic.code)}
+                            onClick={() => navigateTo('NIC', nic.code, selectedItem.parentIds)}
                             className="w-full text-left bg-slate-50 hover:bg-blue-50 p-3 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors text-sm"
                           >
                             <span className="font-mono text-blue-600 mr-2">[{nic.code}]</span>
@@ -535,7 +548,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                         {selectedItem.raw.nandas?.map((nanda: any, i: number) => (
                           <button 
                             key={i} 
-                            onClick={() => navigateTo('NANDA', nanda.code)}
+                            onClick={() => navigateTo('NANDA', nanda.code, selectedItem.parentIds)}
                             className="w-full text-left bg-slate-50 hover:bg-blue-50 p-3 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors text-sm"
                           >
                             <span className="font-mono text-blue-600 mr-2">[{nanda.code}]</span>
@@ -556,7 +569,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                         {selectedItem.raw.classes?.map((cls: any, i: number) => (
                           <button 
                             key={i} 
-                            onClick={() => navigateTo('CLASS', cls.id)}
+                            onClick={() => navigateTo('CLASS', cls.id, { domainId: selectedItem.id })}
                             className="w-full text-left bg-slate-50 hover:bg-blue-50 p-3 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors text-sm"
                           >
                             <span className="font-mono text-blue-600 mr-2">[{cls.id}]</span>
@@ -577,7 +590,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                         {selectedItem.raw.nocs?.map((noc: any, i: number) => (
                           <button 
                             key={i} 
-                            onClick={() => navigateTo('NOC', noc.code)}
+                            onClick={() => navigateTo('NOC', noc.code, selectedItem.parentIds)}
                             className="w-full text-left bg-slate-50 hover:bg-blue-50 p-3 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors text-sm"
                           >
                             <span className="font-mono text-blue-600 mr-2">[{noc.code}]</span>

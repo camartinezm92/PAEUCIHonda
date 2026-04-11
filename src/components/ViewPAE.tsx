@@ -113,7 +113,7 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
         <div className="space-y-6 mb-8">
           <h3 className="text-lg font-bold text-slate-800 mb-3 border-b pb-2">Diagnósticos y Plan de Cuidados</h3>
           
-          {record.nandas.map(nanda => (
+          {[...record.nandas].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(nanda => (
             <div key={nanda.code} className="border border-slate-200 rounded-lg overflow-hidden mb-6">
               <div className="bg-slate-100 p-2 border-b border-slate-200">
                 <h4 className="font-bold text-slate-800 text-sm">NANDA [{nanda.code}] - {nanda.name}</h4>
@@ -123,13 +123,13 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
                   <div>
                     <p className="font-semibold text-slate-700 mb-1">Características Definitorias (m/p):</p>
                     <ul className="list-disc list-inside text-slate-600">
-                      {nanda.selectedCharacteristics.map((c, i) => <li key={i}>{c}</li>)}
+                      {[...nanda.selectedCharacteristics].sort().map((c, i) => <li key={i}>{c}</li>)}
                     </ul>
                   </div>
                   <div>
                     <p className="font-semibold text-slate-700 mb-1">Factores Relacionados (r/c):</p>
                     <ul className="list-disc list-inside text-slate-600">
-                      {nanda.selectedFactors.map((f, i) => <li key={i}>{f}</li>)}
+                      {[...nanda.selectedFactors].sort().map((f, i) => <li key={i}>{f}</li>)}
                     </ul>
                   </div>
                 </div>
@@ -138,7 +138,7 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
                   <div className="mt-3 pt-3 border-t border-slate-100">
                     <p className="font-semibold text-slate-800 mb-2 text-sm">Resultados (NOC) e Intervenciones (NIC)</p>
                     <div className="space-y-3">
-                      {nanda.selectedNOCs.map(noc => (
+                      {[...nanda.selectedNOCs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(noc => (
                         <div key={noc.code} className="bg-emerald-50 p-2 rounded-lg border border-emerald-100 break-inside-avoid">
                           <div className="flex justify-between items-start mb-1">
                             <h5 className="font-semibold text-emerald-900 text-sm">NOC [{noc.code}] - {noc.name}</h5>
@@ -156,11 +156,11 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
                           
                           {noc.selectedNICs.length > 0 && (
                             <div className="mt-2 pl-2 border-l-2 border-emerald-200 space-y-1">
-                              {noc.selectedNICs.map(nic => (
+                              {[...noc.selectedNICs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(nic => (
                                 <div key={nic.code} className="bg-white p-1.5 rounded border border-amber-100">
                                   <h6 className="font-semibold text-amber-900 text-[12px]">NIC [{nic.code}] - {nic.name}</h6>
                                   <ul className="list-disc list-inside text-[11px] text-slate-600 mt-0.5">
-                                    {nic.activities.map((act, i) => <li key={i}>{act}</li>)}
+                                    {[...nic.activities].sort().map((act, i) => <li key={i}>{act}</li>)}
                                   </ul>
                                 </div>
                               ))}

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { TaxonomyDomain } from '../types';
 import { TAXONOMY as DEFAULT_TAXONOMY } from '../data';
 import { db, doc, getDoc, setDoc, auth } from '../firebase';
+import { sortTaxonomy } from '../utils/taxonomySorting';
 
 enum OperationType {
   CREATE = 'create',
@@ -55,7 +56,7 @@ export const DictionaryProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (docSnap.exists()) {
           const data = docSnap.data().taxonomy;
           if (data && Array.isArray(data)) {
-            setTaxonomy(data);
+            setTaxonomy(sortTaxonomy(data));
           }
         } else {
           console.log('Dictionary not found in Firestore, uploading default...');
@@ -91,9 +92,10 @@ export const DictionaryProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const updateTaxonomy = async (newTaxonomy: TaxonomyDomain[]) => {
     try {
+      const sorted = sortTaxonomy(newTaxonomy);
       const dictRef = doc(db, 'app_settings', 'dictionary_v2');
-      await setDoc(dictRef, { taxonomy: newTaxonomy });
-      setTaxonomy(newTaxonomy);
+      await setDoc(dictRef, { taxonomy: sorted });
+      setTaxonomy(sorted);
     } catch (error) {
       console.error('Error updating dictionary:', error);
       handleFirestoreError(error, OperationType.WRITE, 'app_settings/dictionary_v2');

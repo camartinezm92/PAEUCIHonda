@@ -13,6 +13,7 @@ interface PatientDetailProps {
   onEditClosedPAE: (id: string) => void;
   onDeletePAE: (id: string) => void;
   onDeletePatient: (patientId: string) => void;
+  onNewPAE: (patient: PatientInfo) => void;
 }
 
 export default function PatientDetail({ 
@@ -23,7 +24,8 @@ export default function PatientDetail({
   onClosePAE, 
   onEditClosedPAE,
   onDeletePAE,
-  onDeletePatient
+  onDeletePatient,
+  onNewPAE
 }: PatientDetailProps) {
   
   // Sort records by date (newest first)
@@ -58,6 +60,13 @@ export default function PatientDetail({
             &larr; Volver al Historial
           </button>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => onNewPAE(patient)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <Activity className="w-4 h-4" />
+              Nuevo PAE
+            </button>
             <button 
               onClick={handleDownloadAllPDF}
               disabled={sortedRecords.length === 0}
@@ -210,23 +219,23 @@ export default function PatientDetail({
               
               {/* NANDAs */}
               <div className="space-y-3">
-                {record.nandas.map(nanda => (
+                {[...record.nandas].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(nanda => (
                   <div key={nanda.code} className="border border-slate-200 rounded-lg p-3 mb-3">
                     <h4 className="font-bold text-blue-900 mb-1 text-sm">NANDA [{nanda.code}] - {nanda.name}</h4>
                     <div className="grid grid-cols-2 gap-4 text-[11px] mb-3 break-inside-avoid">
-                      <div><p className="font-bold text-slate-700">Características (m/p):</p><ul className="list-disc pl-4 text-slate-600">{nanda.selectedCharacteristics.map((c,i)=><li key={i}>{c}</li>)}</ul></div>
-                      <div><p className="font-bold text-slate-700">Factores (r/c):</p><ul className="list-disc pl-4 text-slate-600">{nanda.selectedFactors.map((f,i)=><li key={i}>{f}</li>)}</ul></div>
+                      <div><p className="font-bold text-slate-700">Características (m/p):</p><ul className="list-disc pl-4 text-slate-600">{[...nanda.selectedCharacteristics].sort().map((c,i)=><li key={i}>{c}</li>)}</ul></div>
+                      <div><p className="font-bold text-slate-700">Factores (r/c):</p><ul className="list-disc pl-4 text-slate-600">{[...nanda.selectedFactors].sort().map((f,i)=><li key={i}>{f}</li>)}</ul></div>
                     </div>
-                    {nanda.selectedNOCs.map(noc => (
+                    {[...nanda.selectedNOCs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(noc => (
                       <div key={noc.code} className="bg-emerald-50 p-2 rounded border border-emerald-100 mb-2 break-inside-avoid">
                         <div className="flex justify-between font-bold text-emerald-900 mb-1 text-[12px]">
                           <span>NOC [{noc.code}] - {noc.name}</span>
                           <span className="text-[11px]">Inicial: {noc.initialRating} {noc.finalRating ? `| Final: ${noc.finalRating}` : ''}</span>
                         </div>
-                        {noc.selectedNICs.map(nic => (
+                        {[...noc.selectedNICs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(nic => (
                           <div key={nic.code} className="bg-white p-1.5 rounded border border-amber-100 mb-1">
                             <p className="font-bold text-amber-900 text-[11px]">NIC [{nic.code}] - {nic.name}</p>
-                            <ul className="list-disc pl-4 text-[10px] mt-0.5 text-slate-600">{nic.activities.map((a,i)=><li key={i}>{a}</li>)}</ul>
+                            <ul className="list-disc pl-4 text-[10px] mt-0.5 text-slate-600">{[...nic.activities].sort().map((a,i)=><li key={i}>{a}</li>)}</ul>
                           </div>
                         ))}
                       </div>

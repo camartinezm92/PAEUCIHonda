@@ -14,6 +14,7 @@ import { useDictionary } from './contexts/DictionaryContext';
 import { Activity, LogOut, Database, BookOpen, Users, Shield } from 'lucide-react';
 import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, query, where, onSnapshot, doc, setDoc, deleteDoc, getDoc } from './firebase';
 import { minifyRecord, expandRecord } from './utils/paeMinifier';
+import { syncPAEToSheets } from './services/syncService';
 import { ToastContainer, ToastType } from './components/Toast';
 import { UserProfile } from './types';
 
@@ -76,6 +77,7 @@ function App() {
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [initialPatientData, setInitialPatientData] = useState<PatientInfo | null>(null);
   
   useEffect(() => {
     const viewTitles: Record<ViewState, string> = {
@@ -245,12 +247,20 @@ function App() {
 
   const handleSavePAE = async (record: PAERecord) => {
     if (!user) return;
+    console.log(`[Firebase] Attempting to save new PAE: ${record.id}`);
     try {
       const minified = minifyRecord(record, user.uid);
       await setDoc(doc(db, 'pae_records', record.id), minified);
+      console.log(`[Firebase Success] PAE ${record.id} saved to Firestore`);
+      
+      // Sync to Google Sheets in background
+      syncPAEToSheets(record);
+
+      setInitialPatientData(null);
       showToast("PAE iniciado exitosamente", "success");
       setCurrentView('DASHBOARD');
     } catch (error) {
+      console.error(`[Firebase Error] Failed to save PAE ${record.id}:`, error);
       console.error("Error saving PAE", error);
       showToast("Error al guardar el PAE", "error");
       try {
@@ -261,13 +271,20 @@ function App() {
 
   const handleClosePAE = async (updatedRecord: PAERecord) => {
     if (!user) return;
+    console.log(`[Firebase] Attempting to close/update PAE: ${updatedRecord.id}`);
     try {
       const minified = minifyRecord(updatedRecord, user.uid);
       await setDoc(doc(db, 'pae_records', updatedRecord.id), minified);
+      console.log(`[Firebase Success] PAE ${updatedRecord.id} updated in Firestore`);
+
+      // Sync to Google Sheets in background
+      syncPAEToSheets(updatedRecord);
+
       showToast("PAE evaluado y cerrado correctamente", "success");
       setCurrentView('PATIENT_DETAIL');
       setSelectedRecordId(null);
     } catch (error) {
+      console.error(`[Firebase Error] Failed to update PAE ${updatedRecord.id}:`, error);
       console.error("Error closing PAE", error);
       showToast("Error al cerrar el PAE", "error");
       try {
@@ -279,6 +296,11 @@ function App() {
   const navigateToPatient = (patientId: string) => {
     setSelectedPatientId(patientId);
     setCurrentView('PATIENT_DETAIL');
+  };
+
+  const handleNewPAEFromPatient = (patient: PatientInfo) => {
+    setInitialPatientData(patient);
+    setCurrentView('CREATE');
   };
 
   const navigateToClose = (id: string) => {
@@ -452,7 +474,10 @@ function App() {
                 Historial
               </button>
               <button 
-                onClick={() => setCurrentView('CREATE')}
+                onClick={() => {
+                  setInitialPatientData(null);
+                  setCurrentView('CREATE');
+                }}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'CREATE' ? 'bg-blue-800' : 'hover:bg-blue-600'}`}
               >
                 + Iniciar PAE
@@ -508,7 +533,15 @@ function App() {
           <Dashboard records={records} onSelectPatient={navigateToPatient} />
         )}
         {currentView === 'CREATE' && (
-          <CreatePAE records={records} onSave={handleSavePAE} onCancel={() => setCurrentView('DASHBOARD')} />
+          <CreatePAE 
+            records={records} 
+            initialPatient={initialPatientData || undefined}
+            onSave={handleSavePAE} 
+            onCancel={() => {
+              setCurrentView(initialPatientData ? 'PATIENT_DETAIL' : 'DASHBOARD');
+              setInitialPatientData(null);
+            }} 
+          />
         )}
         {currentView === 'PATIENT_DETAIL' && selectedPatientId && getSelectedPatient() && (
           <PatientDetail 
@@ -520,6 +553,7 @@ function App() {
             onEditClosedPAE={handleEditClosedPAE}
             onDeletePAE={handleDeletePAE}
             onDeletePatient={handleDeletePatient}
+            onNewPAE={handleNewPAEFromPatient}
           />
         )}
         {currentView === 'VIEW_PAE' && selectedRecordId && getSelectedRecord() && (

@@ -1,32 +1,32 @@
 import { TaxonomyDomain } from './types';
 
-export const SERVICES = ['UCI Crítico', 'UCI Intermedios', 'Hospitalización', 'Cirugía'];
+export const SERVICES = ['Cirugía', 'Hospitalización', 'UCI Crítico', 'UCI Intermedios'];
 
 export const EVALUATORS = [
   'Andrés Fernando Villegas Quintero',
+  'Carmenza Suarez Martinez',
   'Leidy Katherine Rubiano Rico',
-  'Silvia María López Ávila',
   'Margie Lizeth Moreno Reyes',
   'María Alejandra Figueroa Delgado',
-  'Carmenza Suarez Martinez',
-  'Olivia Lozano Vásquez'
+  'Olivia Lozano Vásquez',
+  'Silvia María López Ávila'
 ];
 
 export const NEEDS = [
-  'Respiración y circulación',
-  'Eliminación',
-  'Reposo y sueño',
-  'Temperatura',
   'Alimentación',
-  'Movimiento',
-  'Vestirse',
-  'Limpieza',
-  'Seguridad del entorno',
+  'Aprendizaje',
   'Comunicación',
-  'Religión',
-  'Trabajo',
+  'Eliminación',
   'Entretenimiento',
-  'Aprendizaje'
+  'Limpieza',
+  'Movimiento',
+  'Religión',
+  'Reposo y sueño',
+  'Respiración y circulación',
+  'Seguridad del entorno',
+  'Temperatura',
+  'Trabajo',
+  'Vestirse'
 ];
 
 export const TAXONOMY: TaxonomyDomain[] = [];

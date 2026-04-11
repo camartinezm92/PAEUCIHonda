@@ -12,16 +12,17 @@ import { ChevronDown, ChevronUp, ChevronRight, Activity, ClipboardList, User, Sa
 
 interface CreatePAEProps {
   records: PAERecord[];
+  initialPatient?: PatientInfo;
   onSave: (record: PAERecord) => void;
   onCancel: () => void;
 }
 
-export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps) {
+export default function CreatePAE({ records, initialPatient, onSave, onCancel }: CreatePAEProps) {
   const { taxonomy } = useDictionary();
   const [isSaving, setIsSaving] = useState(false);
   
   // Patient State
-  const [patient, setPatient] = useState<PatientInfo>({
+  const [patient, setPatient] = useState<PatientInfo>(initialPatient || {
     service: '',
     name: '',
     id: '',
@@ -56,7 +57,13 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
         });
       });
     });
-    return all;
+    
+    // Sort globally by code
+    return all.sort((a, b) => {
+      const numA = parseInt(a.code.match(/\d+/)?.[0] || '0', 10);
+      const numB = parseInt(b.code.match(/\d+/)?.[0] || '0', 10);
+      return numA - numB;
+    });
   }, [taxonomy]);
 
   const filteredNandas = useMemo(() => {
@@ -384,9 +391,9 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                 />
                 <div>
                   <span className="text-sm text-slate-700">
-                    <span className="font-mono font-medium text-slate-500">({nanda.code})</span> {nanda.name}
+                    {nanda.name.includes(`(${nanda.code})`) ? nanda.name : `(${nanda.code}) - ${nanda.name}`}
                   </span>
-                  <div className="text-xs text-slate-500 mt-1">
+                  <div className="text-xs text-slate-500 mt-1 uppercase">
                     {nanda.domainName} &gt; {nanda.className}
                   </div>
                 </div>
@@ -431,7 +438,7 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                     <div>
                       <h4 className="font-semibold text-sm text-slate-700 mb-2">Características definitorias (m/p)</h4>
                       <div className="space-y-1">
-                        {nandaDef.characteristics.map((char: string) => (
+                        {[...nandaDef.characteristics].sort().map((char: string) => (
                           <label key={char} className="flex items-start gap-2 text-sm">
                             <input 
                               type="checkbox" 
@@ -452,7 +459,7 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                     <div>
                       <h4 className="font-semibold text-sm text-slate-700 mb-2">Factores relacionados (r/c)</h4>
                       <div className="space-y-1">
-                        {nandaDef.factors.map((factor: string) => (
+                        {[...nandaDef.factors].sort().map((factor: string) => (
                           <label key={factor} className="flex items-start gap-2 text-sm">
                             <input 
                               type="checkbox" 
@@ -476,7 +483,7 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                   <div className="pt-4 border-t border-slate-100">
                     <h4 className="font-semibold text-slate-800 mb-3">Resultados NOC Aplicables</h4>
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {nandaDef.nocs.map((noc: any) => {
+                      {[...nandaDef.nocs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map((noc: any) => {
                         const isSelected = !!nanda.selectedNOCs.find(n => n.code === noc.code);
                         return (
                           <button
@@ -498,7 +505,7 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                     {/* NOC Cards */}
                     {nanda.selectedNOCs.length > 0 && (
                       <div className="space-y-4 mt-4">
-                        {nanda.selectedNOCs.map(noc => {
+                        {[...nanda.selectedNOCs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(noc => {
                           const nocDef = nandaDef.nocs.find((n: any) => n.code === noc.code);
                           if (!nocDef) return null;
                           
@@ -533,7 +540,7 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                               <div className="pl-4 border-l-2 border-emerald-200">
                                 <h6 className="text-sm font-semibold text-slate-700 mb-2">Intervenciones NIC Sugeridas</h6>
                                 <div className="flex flex-wrap gap-2 mb-3">
-                                  {nocDef.nics.map((nic: any) => {
+                                  {[...nocDef.nics].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map((nic: any) => {
                                     const isSelected = !!noc.selectedNICs.find(n => n.code === nic.code);
                                     return (
                                       <button
@@ -555,13 +562,13 @@ export default function CreatePAE({ records, onSave, onCancel }: CreatePAEProps)
                                 {/* NIC Cards */}
                                 {noc.selectedNICs.length > 0 && (
                                   <div className="space-y-3 mt-3">
-                                    {noc.selectedNICs.map(nic => (
+                                    {[...noc.selectedNICs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(nic => (
                                       <div key={nic.code} className="bg-white rounded border border-amber-200 p-3 shadow-sm">
                                         <h6 className="font-bold text-sm text-amber-900 mb-2">
                                           NIC [{nic.code}] - {nic.name}
                                         </h6>
                                         <div className="space-y-1">
-                                          {nocDef.nics.find((n: any) => n.code === nic.code)?.activities.map((act: string, i: number) => (
+                                          {[...(nocDef.nics.find((n: any) => n.code === nic.code)?.activities || [])].sort().map((act: string, i: number) => (
                                             <label key={i} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-amber-50 p-1 rounded">
                                               <input 
                                                 type="checkbox" 
