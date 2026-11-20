@@ -52,7 +52,12 @@
         "nandas": { "type": "array", "items": { "$ref": "#/entities/MinifiedNANDA" } },
         "evaluator": { "type": "string" },
         "observations": { "type": "string" },
-        "userId": { "type": "string", "description": "ID of the user who created the record" }
+        "finalObservations": { "type": "string" },
+        "closedDate": { "type": "string" },
+        "closingEvaluator": { "type": "string" },
+        "userId": { "type": "string", "description": "ID of the user who created the record" },
+        "driveFileId": { "type": "string", "description": "Google Drive file ID for closed PAE PDF" },
+        "driveFileUrl": { "type": "string", "description": "Google Drive web view URL for closed PAE PDF" }
       },
       "required": ["id", "date", "status", "patient", "needs", "nandas", "evaluator", "userId"]
     },

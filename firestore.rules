@@ -1,109 +1,140 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    // Collection: pae_records
-    // Document ID: UUID
-    // Fields:
-    //   - id: string
-    //   - date: string (ISO 8601)
-    //   - status: string ('INICIADA' or 'CERRADA')
-    //   - patient: map (name, id, age, sex, service, medicalDiagnosis)
-    //   - needs: list of strings
-    //   - otherNeed: string (optional)
-    //   - nandas: list of minified objects
-    //   - evaluator: string
-    //   - observations: string
-    //   - userId: string (owner UID)
-    // ===============================================================
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidEmailKey(email) {
+      return email is string && email.size() >= 3 && email.size() <= 254;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
 
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isMasterAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email.lower() == 'camartinezm92@gmail.com' ||
+        request.auth.token.email.lower() == 'ingbiomedico@ucihonda.com.co'
+      );
     }
 
     function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.email.lower() == 'camartinezm92@gmail.com' ||
-        request.auth.token.email.lower() == 'ingbiomedico@ucihonda.com.co' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
-         get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'admin')
+      return isMasterAdmin() || (
+        isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) &&
+        get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'admin'
       );
     }
 
     function isNurse() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) && 
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower())) &&
         get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role == 'nurse';
     }
 
     function isOwner() {
-      return isAuthenticated() && 
-             resource != null && 
-             'userId' in resource.data && 
-             request.auth.uid == resource.data.userId;
+      return isAuthenticated() &&
+        resource != null &&
+        'userId' in resource.data &&
+        request.auth.uid == resource.data.userId;
     }
 
     function isDocOwner() {
       return isAuthenticated() && request.auth.uid == request.resource.data.userId;
     }
 
-    function uidUnchanged() {
-      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
-    }
-
-    function uidNotModified() {
-      return !resource || !('userId' in resource.data) || !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
-    }
-
-    function isValidPAERecord() {
-      let data = request.resource.data;
+    function isValidPAERecord(data) {
       return data.keys().hasAll(['id', 'date', 'status', 'patient', 'needs', 'nandas', 'evaluator', 'userId']) &&
-             data.status in ['INICIADA', 'CERRADA'] &&
-             data.patient is map &&
-             data.patient.keys().hasAll(['name', 'id', 'service', 'medicalDiagnosis']) &&
-             data.patient.name is string && data.patient.name.size() < 100 &&
-             data.patient.id is string && data.patient.id.size() < 50 &&
-             data.needs is list && data.needs.size() <= 20 &&
-             data.nandas is list && data.nandas.size() <= 50 &&
-             data.evaluator is string && data.evaluator.size() < 100 &&
-             (!('observations' in data) || (data.observations is string && data.observations.size() < 2000)) &&
-             (!('otherNeed' in data) || (data.otherNeed is string && data.otherNeed.size() < 200));
+        data.keys().hasOnly(['id', 'date', 'status', 'patient', 'needs', 'otherNeed', 'nandas', 'evaluator', 'observations', 'finalObservations', 'closedDate', 'closingEvaluator', 'userId', 'driveFileId', 'driveFileUrl']) &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.date is string && data.date.size() > 0 && data.date.size() <= 64 &&
+        data.status in ['INICIADA', 'CERRADA'] &&
+        data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+        data.patient is map &&
+        data.patient.keys().hasAll(['name', 'id', 'service', 'medicalDiagnosis']) &&
+        data.patient.keys().hasOnly(['name', 'id', 'age', 'sex', 'service', 'medicalDiagnosis']) &&
+        data.patient.name is string && data.patient.name.size() <= 100 &&
+        data.patient.id is string && data.patient.id.size() <= 50 &&
+        data.patient['service'] is string && data.patient['service'].size() <= 60 &&
+        data.patient.medicalDiagnosis is string && data.patient.medicalDiagnosis.size() <= 1000 &&
+        data.needs is list && data.needs.size() <= 20 &&
+        (data.needs.size() == 0 || data.needs[0] is string) &&
+        data.nandas is list && data.nandas.size() <= 50 &&
+        (data.nandas.size() == 0 || data.nandas[0] is map) &&
+        data.evaluator is string && data.evaluator.size() <= 100 &&
+        (!('observations' in data) || (data.observations is string && data.observations.size() <= 5000)) &&
+        (!('finalObservations' in data) || (data.finalObservations is string && data.finalObservations.size() <= 5000)) &&
+        (!('closedDate' in data) || (data.closedDate is string && data.closedDate.size() <= 64)) &&
+        (!('closingEvaluator' in data) || (data.closingEvaluator is string && data.closingEvaluator.size() <= 100)) &&
+        (!('otherNeed' in data) || (data.otherNeed is string && data.otherNeed.size() <= 200)) &&
+        (!('driveFileId' in data) || (data.driveFileId is string && data.driveFileId.size() <= 128)) &&
+        (!('driveFileUrl' in data) || (data.driveFileUrl is string && data.driveFileUrl.size() <= 500));
+    }
+
+    function isValidUserProfile(data, userEmail) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+        data.uid is string && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.email.lower() == userEmail.lower() &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.role in ['admin', 'nurse', 'viewer'] &&
+        data.createdAt is string && data.createdAt.size() <= 64;
     }
 
     match /pae_records/{recordId} {
-      allow read: if isOwner() || isNurse() || isAdmin();
-      allow create: if isAuthenticated() && isDocOwner() && isValidPAERecord();
-      allow update: if (isOwner() || isNurse() || isAdmin()) && uidNotModified() && isValidPAERecord();
-      allow delete: if isOwner() || isAdmin();
+      allow get: if isValidId(recordId) && (isOwner() || isNurse() || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isNurse() || isAdmin());
+      allow create: if isValidId(recordId) && isAuthenticated() && isValidPAERecord(incoming()) && isDocOwner() && (isNurse() || isAdmin());
+      allow update: if isValidId(recordId) && isAuthenticated() && isValidPAERecord(incoming()) && incoming().userId == existing().userId && (
+        isAdmin() ||
+        ((isOwner() || isNurse()) && existing().status == 'INICIADA') ||
+        ((isOwner() || isNurse()) && existing().status == 'CERRADA' && incoming().diff(existing()).affectedKeys().hasOnly(['driveFileId', 'driveFileUrl']))
+      );
+      allow delete: if isValidId(recordId) && isAdmin();
     }
 
     match /app_settings/{settingId} {
-      // Allow anyone to read settings (like the dictionary) to avoid boot errors
-      allow read: if true;
-      allow write: if isAdmin();
+      allow get: if isValidId(settingId);
+      allow list: if isAdmin();
+      allow write: if isValidId(settingId) && isAdmin();
     }
 
     match /users/{userEmail} {
-      // Allow listing users if authenticated (to avoid permission errors in UserManagement)
-      // But specific 'get' still requires being the user or an admin
-      allow list: if isAuthenticated();
-      allow get: if isAuthenticated() && (request.auth.token.email.lower() == userEmail.lower() || isAdmin());
-      
-      // Allow creating your own profile
-      // If not a master admin, the role MUST be 'viewer'
-      allow create: if isAuthenticated() && 
-                    request.auth.token.email.lower() == userEmail.lower() &&
-                    (request.resource.data.role == 'viewer' || 
-                     request.auth.token.email.lower() == 'camartinezm92@gmail.com' ||
-                     request.auth.token.email.lower() == 'ingbiomedico@ucihonda.com.co');
-      
-      // Allow updates if you are an admin OR (it's your own profile AND you don't change your role)
-      allow update: if isAuthenticated() && (isAdmin() || (request.auth.token.email.lower() == userEmail.lower() && request.resource.data.role == resource.data.role));
-      
-      // Only admins can delete users
-      allow delete: if isAdmin();
+      allow get: if isValidEmailKey(userEmail) && isAuthenticated() && (
+        request.auth.token.email.lower() == userEmail.lower() || isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create: if isValidEmailKey(userEmail) && isAuthenticated() && isValidUserProfile(incoming(), userEmail) && (
+        isAdmin() ||
+        (request.auth.token.email.lower() == userEmail.lower() && (incoming().role == 'viewer' || isMasterAdmin()))
+      );
+      allow update: if isValidEmailKey(userEmail) && isAuthenticated() && isValidUserProfile(incoming(), userEmail) && (
+        isAdmin() ||
+        (
+          request.auth.token.email.lower() == userEmail.lower() &&
+          incoming().role == existing().role &&
+          incoming().email == existing().email &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'displayName'])
+        )
+      );
+      allow delete: if isValidEmailKey(userEmail) && isAdmin();
     }
   }
 }

@@ -37,6 +37,7 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [confirmDeleteEmail, setConfirmDeleteEmail] = useState<string | null>(null);
   const [newUser, setNewUser] = useState({
     email: '',
     displayName: '',
@@ -63,20 +64,26 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUser.email || !newUser.displayName) return;
+    const cleanEmail = newUser.email.trim().toLowerCase();
+    const cleanName = newUser.displayName.trim();
+    if (!cleanEmail || !cleanName) return;
 
     try {
-      // Note: In a real app, we'd use a Cloud Function to create the auth user too.
-      // Here we just create the profile. The user will still need to sign in with Google.
-      // If their email matches this profile, they get the role.
-      
-      const userRef = doc(db, 'users', newUser.email.toLowerCase());
+      const userRef = doc(db, 'users', cleanEmail);
       await setDoc(userRef, {
-        uid: '', // Will be filled when they first sign in if we implement that logic, or we use email as key
-        email: newUser.email.toLowerCase(),
-        displayName: newUser.displayName,
+        uid: '',
+        email: cleanEmail,
+        displayName: cleanName,
         role: newUser.role,
-        createdAt: new Date().toISOString()
+        createdAt: new Intl.DateTimeFormat('sv-SE', {
+          timeZone: 'America/Bogota',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }).format(new Date()).replace(' ', 'T')
       });
 
       showToast("Usuario autorizado correctamente", "success");
@@ -85,7 +92,7 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
     } catch (error) {
       console.error("Error adding user:", error);
       showToast("Error al autorizar usuario", "error");
-      handleFirestoreError(error, OperationType.WRITE, `users/${newUser.email}`);
+      handleFirestoreError(error, OperationType.WRITE, `users/${cleanEmail}`);
     }
   };
 
@@ -102,10 +109,9 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
   };
 
   const handleDeleteUser = async (email: string) => {
-    if (!window.confirm(`¿Está seguro de eliminar el acceso para ${email}?`)) return;
-    
     try {
       await deleteDoc(doc(db, 'users', email.toLowerCase()));
+      setConfirmDeleteEmail(null);
       showToast("Usuario eliminado", "success");
     } catch (error) {
       console.error("Error deleting user:", error);
@@ -121,7 +127,13 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `biblioteca_pae_backup_${new Date().toISOString().split('T')[0]}.json`;
+      const colombiaDate = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      link.download = `biblioteca_pae_backup_${colombiaDate}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -299,16 +311,35 @@ export default function UserManagement({ onBack, showToast }: UserManagementProp
                       )}
                     </td>
                     <td className="px-6 py-4 text-slate-500 text-xs">
-                      {new Date(user.createdAt).toLocaleDateString()}
+                      {user.createdAt && !isNaN(Date.parse(user.createdAt))
+                        ? new Date(user.createdAt).toLocaleDateString()
+                        : user.createdAt || '—'}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => handleDeleteUser(user.email)}
-                        className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                        title="Eliminar acceso"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {confirmDeleteEmail === user.email ? (
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => handleDeleteUser(user.email)}
+                            className="px-2.5 py-1 bg-red-600 text-white text-xs font-medium rounded-md hover:bg-red-700 transition-colors"
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteEmail(null)}
+                            className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-md hover:bg-slate-200 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setConfirmDeleteEmail(user.email)}
+                          className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                          title="Eliminar acceso"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

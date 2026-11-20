@@ -4,6 +4,7 @@ export const SERVICES = ['Cirugía', 'Hospitalización', 'UCI Crítico', 'UCI In
 
 export const EVALUATORS = [
   'Andrés Fernando Villegas Quintero',
+  'Carmenza Suarez Martinez',
   'Leidy Katherine Rubiano Rico',
   'Margie Lizeth Moreno Reyes',
   'María Alejandra Figueroa Delgado',

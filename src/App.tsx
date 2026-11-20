@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { PAERecord } from './types';
+import { PAERecord, PatientInfo, UserProfile } from './types';
 import Dashboard from './components/Dashboard';
 import CreatePAE from './components/CreatePAE';
 import ClosePAE from './components/ClosePAE';
 import PatientDetail from './components/PatientDetail';
 import ViewPAE from './components/ViewPAE';
-import AuthModal from './components/AuthModal';
 import ConfirmModal from './components/ConfirmModal';
 import DictionaryManager from './components/DictionaryManager';
 import DictionaryViewer from './components/DictionaryViewer';
@@ -14,9 +13,8 @@ import { useDictionary } from './contexts/DictionaryContext';
 import { Activity, LogOut, Database, BookOpen, Users, Shield } from 'lucide-react';
 import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, collection, query, where, onSnapshot, doc, setDoc, deleteDoc, getDoc } from './firebase';
 import { minifyRecord, expandRecord } from './utils/paeMinifier';
-import { syncPAEToSheets } from './services/syncService';
+import { syncPAEToSheets, uploadPAEPdfToDrive } from './services/syncService';
 import { ToastContainer, ToastType } from './components/Toast';
-import { UserProfile } from './types';
 
 enum OperationType {
   CREATE = 'create',
@@ -105,67 +103,91 @@ function App() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
   
-  // Auth Modal State (for admin actions)
-  const [authConfig, setAuthConfig] = useState<{ 
-    isOpen: boolean; 
-    onSuccess: () => void; 
-    type: 'dictionary' | 'users' 
-  } | null>(null);
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [isUserAdminAuthenticated, setIsUserAdminAuthenticated] = useState(false);
-  
   // Confirm Modal State
   const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
 
   // Firebase Auth State
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+
+  const masterAdmins = ['camartinezm92@gmail.com', 'ingbiomedico@ucihonda.com.co'];
+  const isMasterAdminEmail = (email?: string | null) =>
+    !!email && masterAdmins.includes(email.toLowerCase());
+
+  const loadOrCreateUserProfile = async (currentUser: any) => {
+    const userEmail = currentUser.email?.toLowerCase() || '';
+    const isMaster = isMasterAdminEmail(currentUser.email);
+    setProfileError(null);
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userEmail));
+      if (userDoc.exists()) {
+        const existingProfile = userDoc.data() as UserProfile;
+        const resolvedRole = isMaster ? 'admin' : existingProfile.role;
+        const resolvedDisplayName = existingProfile.displayName || currentUser.displayName || 'Usuario';
+
+        if (!existingProfile.uid || existingProfile.uid !== currentUser.uid || existingProfile.role !== resolvedRole) {
+          const syncedProfile: UserProfile = {
+            ...existingProfile,
+            uid: currentUser.uid,
+            displayName: resolvedDisplayName,
+            role: resolvedRole,
+          };
+          await setDoc(doc(db, 'users', userEmail), {
+            uid: currentUser.uid,
+            displayName: resolvedDisplayName,
+            role: resolvedRole,
+          }, { merge: true });
+          setUserProfile(syncedProfile);
+        } else {
+          setUserProfile(existingProfile);
+        }
+      } else {
+        const profile: UserProfile = {
+          uid: currentUser.uid,
+          email: userEmail,
+          displayName: currentUser.displayName || 'Usuario',
+          role: isMaster ? 'admin' : 'viewer',
+          createdAt: new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'America/Bogota',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }).format(new Date()).replace(' ', 'T')
+        };
+        try {
+          await setDoc(doc(db, 'users', userEmail), profile);
+          setUserProfile(profile);
+        } catch (setErr) {
+          setProfileError('No se pudo registrar el perfil de usuario.');
+          handleFirestoreError(setErr, OperationType.WRITE, `users/${userEmail}`);
+        }
+      }
+    } catch (e) {
+      console.error("Error loading user profile", e);
+      setProfileError('No se pudo cargar el perfil de usuario.');
+      if (!(e instanceof Error && e.message.startsWith('{'))) {
+        try {
+          handleFirestoreError(e, OperationType.GET, `users/${userEmail}`);
+        } catch (handledErr) {
+          // Logged already
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        console.log("User logged in:", currentUser.email);
-        // Load user profile from Firestore
-        const userEmail = currentUser.email?.toLowerCase() || '';
-        try {
-          const userDoc = await getDoc(doc(db, 'users', userEmail));
-          if (userDoc.exists()) {
-            const profile = userDoc.data() as UserProfile;
-            console.log("User profile loaded:", profile.role);
-            setUserProfile(profile);
-          } else {
-            // Default profile for first-time users or unlisted users
-            // If it's the owner email, make them admin automatically
-            const isMasterAdmin = ['camartinezm92@gmail.com', 'ingbiomedico@ucihonda.com.co'].includes(currentUser.email?.toLowerCase() || '');
-            const profile: UserProfile = {
-              uid: currentUser.uid,
-              email: currentUser.email || '',
-              displayName: currentUser.displayName || 'Usuario',
-              role: isMasterAdmin ? 'admin' : 'viewer', // Default role is viewer (observer)
-              createdAt: new Date().toISOString()
-            };
-            try {
-              await setDoc(doc(db, 'users', userEmail), profile);
-              setUserProfile(profile);
-            } catch (setErr) {
-              handleFirestoreError(setErr, OperationType.WRITE, `users/${userEmail}`);
-            }
-          }
-        } catch (e) {
-          console.error("Error loading user profile", e);
-          // If it's already a JSON error from handleFirestoreError, don't wrap it again
-          if (!(e instanceof Error && e.message.startsWith('{'))) {
-            try {
-              handleFirestoreError(e, OperationType.GET, `users/${userEmail}`);
-            } catch (handledErr) {
-              // We just want to log it
-            }
-          }
-        }
+        await loadOrCreateUserProfile(currentUser);
       } else {
         setUserProfile(null);
+        setProfileError(null);
       }
       setLoadingAuth(false);
     });
@@ -173,14 +195,20 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!user || loadingDict) {
+    if (!user || !userProfile || loadingDict) {
       setRecords([]);
       return;
     }
 
-    // Admins see all records, others see only theirs (or based on role)
+    const isMaster = isMasterAdminEmail(user.email);
+    if (userProfile.role === 'viewer' && !isMaster) {
+      setRecords([]);
+      return;
+    }
+
+    // Admins and Nurses see all PAE records; fallback restricts to own records
     let q;
-    if (userProfile?.role === 'admin') {
+    if (userProfile.role === 'admin' || userProfile.role === 'nurse' || isMaster) {
       q = query(collection(db, 'pae_records'));
     } else {
       q = query(collection(db, 'pae_records'), where('userId', '==', user.uid));
@@ -206,7 +234,7 @@ function App() {
     });
 
     return () => unsubscribe();
-  }, [user, taxonomy, loadingDict]);
+  }, [user, userProfile, taxonomy, loadingDict]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -224,24 +252,13 @@ function App() {
     }
   };
 
-  const requireAuth = (onSuccess: () => void, type: 'dictionary' | 'users' = 'dictionary') => {
-    if (type === 'dictionary' && isAdminAuthenticated) {
-      onSuccess();
-    } else if (type === 'users' && isUserAdminAuthenticated) {
+  const isAdminUser = userProfile?.role === 'admin' || isMasterAdminEmail(user?.email);
+
+  const requireAdmin = (onSuccess: () => void) => {
+    if (isAdminUser) {
       onSuccess();
     } else {
-      setAuthConfig({ 
-        isOpen: true, 
-        type,
-        onSuccess: () => {
-          if (type === 'users') {
-            setIsUserAdminAuthenticated(true);
-          } else {
-            setIsAdminAuthenticated(true);
-          }
-          onSuccess();
-        } 
-      });
+      showToast("Acceso restringido: esta acción requiere rol de Administrador.", "error");
     }
   };
 
@@ -277,10 +294,25 @@ function App() {
       await setDoc(doc(db, 'pae_records', updatedRecord.id), minified);
       console.log(`[Firebase Success] PAE ${updatedRecord.id} updated in Firestore`);
 
-      // Sync to Google Sheets in background
-      syncPAEToSheets(updatedRecord);
+      // Sync to Google Sheets & automatically upload PDF to Google Drive
+      const syncResult = await syncPAEToSheets(updatedRecord);
 
-      showToast("PAE evaluado y cerrado correctamente", "success");
+      if (syncResult.driveFileId && syncResult.driveFileUrl) {
+        try {
+          await setDoc(doc(db, 'pae_records', updatedRecord.id), {
+            driveFileId: syncResult.driveFileId,
+            driveFileUrl: syncResult.driveFileUrl,
+          }, { merge: true });
+        } catch (driveMetaErr) {
+          console.error('[Firebase Warning] Failed to save Drive URL metadata:', driveMetaErr);
+        }
+        showToast("PAE cerrado y PDF guardado en Google Drive", "success");
+      } else if (syncResult.driveError || !syncResult.success) {
+        showToast("PAE cerrado, pero falló el respaldo en Drive (puedes reintentar desde Ver PAE)", "error");
+      } else {
+        showToast("PAE evaluado y cerrado correctamente", "success");
+      }
+
       setCurrentView('PATIENT_DETAIL');
       setSelectedRecordId(null);
     } catch (error) {
@@ -290,6 +322,25 @@ function App() {
       try {
         handleFirestoreError(error, OperationType.WRITE, `pae_records/${updatedRecord.id}`);
       } catch (e) {}
+    }
+  };
+
+  const handleUploadPAEToDrive = async (record: PAERecord) => {
+    if (!user) return;
+    const res = await uploadPAEPdfToDrive(record);
+    if (res.success && res.driveFileId && res.driveFileUrl) {
+      try {
+        await setDoc(doc(db, 'pae_records', record.id), {
+          driveFileId: res.driveFileId,
+          driveFileUrl: res.driveFileUrl,
+        }, { merge: true });
+        showToast("PDF guardado en Google Drive correctamente", "success");
+      } catch (err) {
+        console.error('[Firebase Warning] Failed to persist Drive link:', err);
+        showToast("PDF subido a Drive, pero no se pudo guardar el enlace en Firestore", "error");
+      }
+    } else {
+      showToast(res.error || "Error al subir el PDF a Google Drive", "error");
     }
   };
 
@@ -309,7 +360,7 @@ function App() {
   };
 
   const handleEditClosedPAE = (id: string) => {
-    requireAuth(() => {
+    requireAdmin(() => {
       setSelectedRecordId(id);
       setCurrentView('CLOSE');
     });
@@ -321,7 +372,7 @@ function App() {
   };
 
   const handleDeletePAE = (id: string) => {
-    requireAuth(() => {
+    requireAdmin(() => {
       setConfirmConfig({
         isOpen: true,
         title: 'Eliminar PAE',
@@ -343,7 +394,7 @@ function App() {
   };
 
   const handleDeletePatient = (patientId: string) => {
-    requireAuth(() => {
+    requireAdmin(() => {
       setConfirmConfig({
         isOpen: true,
         title: 'Eliminar Paciente',
@@ -420,11 +471,37 @@ function App() {
     );
   }
 
-  const masterAdmins = ['camartinezm92@gmail.com', 'ingbiomedico@ucihonda.com.co'];
-  const showUsersButton = userProfile?.role === 'admin' || masterAdmins.includes(user?.email?.toLowerCase() || '');
-  console.log("Show users button:", showUsersButton, "Role:", userProfile?.role, "Email:", user?.email);
+  if (user && !userProfile && !isMasterAdminEmail(user.email)) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-100">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Shield className="w-8 h-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">Error de Perfil</h1>
+          <p className="text-slate-600 mb-6">
+            {profileError || 'No pudimos verificar tu perfil de acceso en el servidor.'}
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => loadOrCreateUserProfile(user)}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+            >
+              Reintentar
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-300 transition-colors"
+            >
+              <LogOut className="w-5 h-5" /> Cerrar Sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  if (user && userProfile?.role === 'viewer') {
+  if (user && userProfile?.role === 'viewer' && !isMasterAdminEmail(user.email)) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-100">
@@ -488,18 +565,20 @@ function App() {
               >
                 <BookOpen className="w-4 h-4" /> Biblioteca
               </button>
-              <button 
-                onClick={() => {
-                  requireAuth(() => setCurrentView('DICTIONARY'));
-                }}
-                className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'DICTIONARY' ? 'bg-blue-800' : 'hover:bg-blue-600'}`}
-              >
-                <Database className="w-4 h-4" /> Agregar Info
-              </button>
-              {showUsersButton && (
+              {isAdminUser && (
                 <button 
                   onClick={() => {
-                    requireAuth(() => setCurrentView('USERS'), 'users');
+                    requireAdmin(() => setCurrentView('DICTIONARY'));
+                  }}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'DICTIONARY' ? 'bg-blue-800' : 'hover:bg-blue-600'}`}
+                >
+                  <Database className="w-4 h-4" /> Agregar Info
+                </button>
+              )}
+              {isAdminUser && (
+                <button 
+                  onClick={() => {
+                    requireAdmin(() => setCurrentView('USERS'));
                   }}
                   className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${currentView === 'USERS' ? 'bg-blue-800' : 'hover:bg-blue-600'}`}
                 >
@@ -520,14 +599,14 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 print:p-0 print:m-0 print:max-w-none">
-        {currentView === 'DICTIONARY' && (
+        {currentView === 'DICTIONARY' && isAdminUser && (
           <DictionaryManager onBack={() => setCurrentView('DASHBOARD')} />
         )}
-        {currentView === 'USERS' && (
+        {currentView === 'USERS' && isAdminUser && (
           <UserManagement onBack={() => setCurrentView('DASHBOARD')} showToast={showToast} />
         )}
         {currentView === 'LIBRARY' && (
-          <DictionaryViewer onBack={() => setCurrentView('DASHBOARD')} requireAuth={(cb) => requireAuth(cb, 'dictionary')} />
+          <DictionaryViewer onBack={() => setCurrentView('DASHBOARD')} isAdmin={isAdminUser} requireAuth={requireAdmin} />
         )}
         {currentView === 'DASHBOARD' && (
           <Dashboard records={records} onSelectPatient={navigateToPatient} />
@@ -547,6 +626,7 @@ function App() {
           <PatientDetail 
             patient={getSelectedPatient()!} 
             records={records.filter(r => r.patient.id === selectedPatientId)}
+            isAdmin={isAdminUser}
             onBack={() => setCurrentView('DASHBOARD')}
             onViewPAE={navigateToView}
             onClosePAE={navigateToClose}
@@ -560,6 +640,7 @@ function App() {
           <ViewPAE 
             record={getSelectedRecord()!} 
             onBack={() => setCurrentView('PATIENT_DETAIL')} 
+            onUploadToDrive={handleUploadPAEToDrive}
           />
         )}
         {currentView === 'CLOSE' && selectedRecordId && getSelectedRecord() && (
@@ -570,17 +651,6 @@ function App() {
           />
         )}
       </main>
-
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={!!authConfig?.isOpen} 
-        type={authConfig?.type}
-        onClose={() => setAuthConfig(null)} 
-        onSuccess={() => {
-          if (authConfig?.onSuccess) authConfig.onSuccess();
-          setAuthConfig(null);
-        }} 
-      />
 
       {/* Confirm Modal */}
       <ConfirmModal

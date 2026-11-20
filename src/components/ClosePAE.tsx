@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PAERecord, SelectedNANDA } from '../types';
-import { CheckCircle, XCircle, Save } from 'lucide-react';
+import { EVALUATORS } from '../data';
+import { CheckCircle, XCircle, Save, Clock, User } from 'lucide-react';
 
 interface ClosePAEProps {
   record: PAERecord;
@@ -9,12 +10,14 @@ interface ClosePAEProps {
 }
 
 export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
-  // We need to keep track of the final ratings for all NOCs in this record
   const [nandas, setNandas] = useState<SelectedNANDA[]>(record.nandas);
-  const [observations, setObservations] = useState(record.observations || '');
+  const [finalObservations, setFinalObservations] = useState(record.finalObservations ?? '');
+  const [closingEvaluator, setClosingEvaluator] = useState(record.closingEvaluator || record.evaluator || '');
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const updateFinalRating = (nandaCode: string, nocCode: string, rating: number) => {
+    setValidationError(null);
     setNandas(nandas.map(nanda => {
       if (nanda.code === nandaCode) {
         return {
@@ -33,8 +36,8 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError(null);
 
-    // Check if all NOCs have a final rating
     let allRated = true;
     nandas.forEach(nanda => {
       nanda.selectedNOCs.forEach(noc => {
@@ -43,15 +46,35 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
     });
 
     if (!allRated) {
-      alert('Por favor asigne una calificación final a todos los NOCs seleccionados.');
+      setValidationError('Por favor asigne una calificación final a todos los NOCs seleccionados.');
+      return;
+    }
+
+    if (!closingEvaluator) {
+      setValidationError('Por favor seleccione el profesional que realiza el cierre.');
       return;
     }
 
     setIsSaving(true);
+
+    const colombiaClosedISO = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(new Date()).replace(' ', 'T');
+
     const updatedRecord: PAERecord = {
       ...record,
       nandas,
-      observations,
+      // Preserve original initial observations untouched
+      observations: record.observations || '',
+      finalObservations,
+      closedDate: record.status === 'CERRADA' && record.closedDate ? record.closedDate : colombiaClosedISO,
+      closingEvaluator,
       status: 'CERRADA'
     };
 
@@ -62,7 +85,6 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
     }
   };
 
-  // Only show NANDAs that have selected NOCs
   const nandasWithNocs = nandas.filter(n => n.selectedNOCs.length > 0);
 
   return (
@@ -78,10 +100,36 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-8">
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-700">
-            <p>Por favor, evalúe el estado final del paciente para cada uno de los resultados (NOC) que se plantearon al inicio del PAE.</p>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Read-only Initial Context (Antes) */}
+          <div className="bg-blue-50/70 p-4 rounded-xl border border-blue-200 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-blue-900 uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-blue-600" />
+                Registro Inicial (Antes) — Solo Lectura
+              </span>
+              <span className="text-blue-700 normal-case font-medium">
+                Inicio: {new Date(record.date).toLocaleString()}
+              </span>
+            </div>
+            <p className="text-sm text-slate-700">
+              <span className="font-semibold">Evaluador inicial:</span> {record.evaluator || 'No registrado'}
+            </p>
+            <div className="bg-white p-3 rounded-lg border border-blue-100 text-sm text-slate-700">
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Observaciones Iniciales:</p>
+              <p className="whitespace-pre-wrap">{record.observations || 'Sin observaciones iniciales registradas.'}</p>
+            </div>
           </div>
+
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-700">
+            <p>Evalúe el estado final del paciente para cada uno de los resultados (NOC) planteados al inicio.</p>
+          </div>
+
+          {validationError && (
+            <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm border border-red-200">
+              {validationError}
+            </div>
+          )}
 
           <div className="space-y-6">
             {nandasWithNocs.map(nanda => (
@@ -100,7 +148,7 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
                           NOC [{noc.code}] - {noc.name}
                         </h4>
                         <p className="text-sm text-emerald-700 mt-1">
-                          Calificación Inicial: <span className="font-bold">{noc.initialRating}</span>
+                          Calificación Inicial (Antes): <span className="font-bold">{noc.initialRating}</span>
                         </p>
                       </div>
                       
@@ -132,15 +180,33 @@ export default function ClosePAE({ record, onSave, onCancel }: ClosePAEProps) {
             ))}
           </div>
 
-          <div className="pt-6 border-t border-slate-200">
-            <label className="block text-sm font-medium text-slate-700 mb-2">Observaciones Finales</label>
-            <textarea 
-              className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-3 border"
-              rows={4}
-              placeholder="Ingrese observaciones sobre la evolución y cierre del proceso..."
-              value={observations}
-              onChange={e => setObservations(e.target.value)}
-            />
+          <div className="pt-6 border-t border-slate-200 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5">
+                <User className="w-4 h-4 text-slate-500" />
+                Evaluador de Cierre (Después)
+              </label>
+              <select
+                className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2.5 border"
+                value={closingEvaluator}
+                onChange={e => setClosingEvaluator(e.target.value)}
+                required
+              >
+                <option value="">Seleccione profesional...</option>
+                {EVALUATORS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Observaciones Finales (Después)</label>
+              <textarea 
+                className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-3 border"
+                rows={4}
+                placeholder="Ingrese la evolución y observaciones finales al cierre del proceso (el comentario inicial se conservará intacto)..."
+                value={finalObservations}
+                onChange={e => setFinalObservations(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="pt-6 border-t border-slate-200 flex justify-end gap-4">

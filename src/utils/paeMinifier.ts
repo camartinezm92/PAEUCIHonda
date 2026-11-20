@@ -10,7 +10,12 @@ export const minifyRecord = (record: PAERecord, fallbackUserId: string): any => 
     otherNeed: record.otherNeed || '',
     evaluator: record.evaluator,
     observations: record.observations || '',
+    ...(record.finalObservations !== undefined ? { finalObservations: record.finalObservations } : {}),
+    ...(record.closedDate ? { closedDate: record.closedDate } : {}),
+    ...(record.closingEvaluator ? { closingEvaluator: record.closingEvaluator } : {}),
     userId: record.userId || fallbackUserId,
+    ...(record.driveFileId ? { driveFileId: record.driveFileId } : {}),
+    ...(record.driveFileUrl ? { driveFileUrl: record.driveFileUrl } : {}),
     nandas: record.nandas.map(n => ({
       c: n.code,
       ch: n.selectedCharacteristics,
@@ -48,7 +53,12 @@ export const expandRecord = (minified: any, taxonomy: TaxonomyDomain[]): PAEReco
     otherNeed: minified.otherNeed || '',
     evaluator: minified.evaluator || '',
     observations: minified.observations || '',
+    ...(minified.finalObservations !== undefined ? { finalObservations: minified.finalObservations } : {}),
+    ...(minified.closedDate ? { closedDate: minified.closedDate } : {}),
+    ...(minified.closingEvaluator ? { closingEvaluator: minified.closingEvaluator } : {}),
     userId: minified.userId,
+    ...(minified.driveFileId ? { driveFileId: minified.driveFileId } : {}),
+    ...(minified.driveFileUrl ? { driveFileUrl: minified.driveFileUrl } : {}),
     nandas: (minified.nandas || []).map((mn: any): SelectedNANDA => {
       const nandaDef = getNandaDef(mn.c);
       

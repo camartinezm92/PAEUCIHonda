@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PAERecord } from '../types';
-import { FileText, Download, ArrowLeft, CheckCircle, Clock } from 'lucide-react';
+import { FileText, Download, ArrowLeft, CheckCircle, Clock, CloudUpload, ExternalLink, RefreshCw } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 
 interface ViewPAEProps {
   record: PAERecord;
   onBack: () => void;
+  onUploadToDrive?: (record: PAERecord) => Promise<void>;
 }
 
-export default function ViewPAE({ record, onBack }: ViewPAEProps) {
+export default function ViewPAE({ record, onBack, onUploadToDrive }: ViewPAEProps) {
+  const [isUploadingDrive, setIsUploadingDrive] = useState(false);
+
   const handleDownloadPDF = () => {
     const element = document.getElementById('pae-pdf-content');
     if (!element) return;
@@ -18,18 +21,28 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
     const opt = {
       margin:       10,
       filename:     filename,
-      image:        { type: 'jpeg', quality: 0.98 },
+      image:        { type: 'jpeg' as const, quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
       pagebreak:    { mode: ['css', 'legacy'] }
     };
 
     html2pdf().set(opt).from(element).save();
   };
 
+  const handleDriveUpload = async () => {
+    if (!onUploadToDrive || isUploadingDrive) return;
+    setIsUploadingDrive(true);
+    try {
+      await onUploadToDrive(record);
+    } finally {
+      setIsUploadingDrive(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20 print:pb-0 print:max-w-none">
-      <div className="flex justify-between items-center print:hidden">
+      <div className="flex flex-wrap justify-between items-center gap-3 print:hidden">
         <button 
           onClick={onBack}
           className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors font-medium"
@@ -38,13 +51,50 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
         </button>
         
         {record.status === 'CERRADA' && (
-          <button 
-            onClick={handleDownloadPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Descargar PDF
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {record.driveFileUrl && (
+              <a
+                href={record.driveFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Ver PDF en Drive
+              </a>
+            )}
+            {onUploadToDrive && (
+              <button
+                onClick={handleDriveUpload}
+                disabled={isUploadingDrive}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {isUploadingDrive ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Subiendo a Drive...
+                  </>
+                ) : record.driveFileUrl ? (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Actualizar en Drive
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload className="w-4 h-4" />
+                    Guardar en Drive
+                  </>
+                )}
+              </button>
+            )}
+            <button 
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Descargar PDF
+            </button>
+          </div>
         )}
       </div>
 
@@ -57,7 +107,10 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
               Proceso de Atención de Enfermería (PAE)
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Fecha de inicio: {new Date(record.date).toLocaleString()}
+              Inicio (Antes): {new Date(record.date).toLocaleString()}
+              {record.closedDate && (
+                <> &nbsp;|&nbsp; Cierre (Después): {new Date(record.closedDate).toLocaleString()}</>
+              )}
             </p>
           </div>
           <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
@@ -142,14 +195,25 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
                         <div key={noc.code} className="bg-emerald-50 p-2 rounded-lg border border-emerald-100 break-inside-avoid">
                           <div className="flex justify-between items-start mb-1">
                             <h5 className="font-semibold text-emerald-900 text-sm">NOC [{noc.code}] - {noc.name}</h5>
-                            <div className="flex gap-2 text-[11px] font-medium">
+                            <div className="flex flex-wrap gap-2 text-[11px] font-medium">
                               <span className="bg-white px-1.5 py-0.5 rounded border border-emerald-200 text-emerald-800">
-                                Inicial: {noc.initialRating}
+                                Inicial (Antes): {noc.initialRating}
                               </span>
-                              {noc.finalRating && (
-                                <span className="bg-emerald-600 px-1.5 py-0.5 rounded text-white">
-                                  Final: {noc.finalRating}
-                                </span>
+                              {noc.finalRating !== undefined && noc.finalRating !== null && (
+                                <>
+                                  <span className="bg-emerald-600 px-1.5 py-0.5 rounded text-white">
+                                    Final (Después): {noc.finalRating}
+                                  </span>
+                                  <span className={`px-1.5 py-0.5 rounded border ${
+                                    noc.finalRating - noc.initialRating > 0
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : noc.finalRating - noc.initialRating < 0
+                                      ? 'bg-red-50 text-red-700 border-red-200'
+                                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                                  }`}>
+                                    Cambio: {noc.finalRating - noc.initialRating > 0 ? `+${noc.finalRating - noc.initialRating}` : noc.finalRating - noc.initialRating}
+                                  </span>
+                                </>
                               )}
                             </div>
                           </div>
@@ -176,15 +240,38 @@ export default function ViewPAE({ record, onBack }: ViewPAEProps) {
           ))}
         </div>
 
-        {/* Footer Info */}
-        <div className="border-t border-slate-200 pt-6 grid md:grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-slate-500 font-semibold uppercase">Evaluador (Enfermero/a)</p>
-            <p className="font-medium text-slate-800">{record.evaluator}</p>
+        {/* Footer Info: Before vs After Comparison */}
+        <div className="border-t border-slate-200 pt-6 grid md:grid-cols-2 gap-4 break-inside-avoid">
+          <div className="bg-blue-50/60 p-4 rounded-lg border border-blue-100 space-y-2">
+            <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider">Registro Inicial (Antes)</h4>
+            <p className="text-xs text-slate-600">
+              <span className="font-semibold">Fecha/Hora:</span> {new Date(record.date).toLocaleString()}
+            </p>
+            <p className="text-xs text-slate-700">
+              <span className="font-semibold">Evaluador inicial:</span> {record.evaluator || 'No registrado'}
+            </p>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Observaciones Iniciales</p>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{record.observations || 'Ninguna'}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-slate-500 font-semibold uppercase">Observaciones</p>
-            <p className="text-sm text-slate-700">{record.observations || 'Ninguna'}</p>
+
+          <div className="bg-emerald-50/60 p-4 rounded-lg border border-emerald-100 space-y-2">
+            <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider">Evaluación y Cierre (Después)</h4>
+            <p className="text-xs text-slate-600">
+              <span className="font-semibold">Fecha/Hora:</span> {record.closedDate ? new Date(record.closedDate).toLocaleString() : (record.status === 'CERRADA' ? 'No registrada' : 'Pendiente')}
+            </p>
+            <p className="text-xs text-slate-700">
+              <span className="font-semibold">Evaluador de cierre:</span> {record.closingEvaluator || (record.status === 'CERRADA' ? record.evaluator : 'Pendiente')}
+            </p>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Observaciones Finales</p>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                {record.status === 'CERRADA'
+                  ? (record.finalObservations ?? 'Ninguna')
+                  : 'Pendiente por evaluar y cerrar'}
+              </p>
+            </div>
           </div>
         </div>
       </div>

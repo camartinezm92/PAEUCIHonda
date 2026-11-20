@@ -1,12 +1,13 @@
 import React from 'react';
 import { PAERecord, PatientInfo } from '../types';
-import { User, Activity, Clock, CheckCircle, Eye, Trash2, Edit, Download } from 'lucide-react';
+import { User, Activity, Clock, CheckCircle, Eye, Trash2, Edit, Download, ExternalLink } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { getRecordEmoji, getPatientGlobalEmoji } from '../utils/emojiUtils';
 
 interface PatientDetailProps {
   patient: PatientInfo;
   records: PAERecord[];
+  isAdmin?: boolean;
   onBack: () => void;
   onViewPAE: (id: string) => void;
   onClosePAE: (id: string) => void;
@@ -19,6 +20,7 @@ interface PatientDetailProps {
 export default function PatientDetail({ 
   patient, 
   records, 
+  isAdmin = false,
   onBack, 
   onViewPAE, 
   onClosePAE, 
@@ -40,9 +42,9 @@ export default function PatientDetail({
     const opt = {
       margin:       10,
       filename:     filename,
-      image:        { type: 'jpeg', quality: 0.98 },
+      image:        { type: 'jpeg' as const, quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
       pagebreak:    { mode: ['css', 'legacy'] }
     };
 
@@ -75,13 +77,15 @@ export default function PatientDetail({
               <Download className="w-4 h-4" />
               Descargar Historial (PDF)
             </button>
-            <button 
-              onClick={() => onDeletePatient(patient.id)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Eliminar Paciente
-            </button>
+            {isAdmin && (
+              <button 
+                onClick={() => onDeletePatient(patient.id)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Eliminar Paciente
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -146,6 +150,18 @@ export default function PatientDetail({
                   <span className="text-sm text-slate-500 font-medium">
                     {new Date(record.date).toLocaleString()}
                   </span>
+                  {record.status === 'CERRADA' && record.driveFileUrl && (
+                    <a
+                      href={record.driveFileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                      title="Abrir PDF en Google Drive"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Drive
+                    </a>
+                  )}
                 </div>
                 <p className="text-sm text-slate-700">
                   <span className="font-semibold">Evaluador:</span> {record.evaluator}
@@ -170,21 +186,23 @@ export default function PatientDetail({
                   >
                     <CheckCircle className="w-4 h-4" /> Evaluar / Cerrar
                   </button>
-                ) : (
+                ) : isAdmin ? (
                   <button 
                     onClick={() => onEditClosedPAE(record.id)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-700 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors"
                   >
                     <Edit className="w-4 h-4" /> Editar
                   </button>
-                )}
+                ) : null}
 
-                <button 
-                  onClick={() => onDeletePAE(record.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" /> Eliminar
-                </button>
+                {isAdmin && (
+                  <button 
+                    onClick={() => onDeletePAE(record.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" /> Eliminar
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -199,7 +217,11 @@ export default function PatientDetail({
             <div key={`print-${record.id}`} className={`p-8 ${index > 0 ? 'break-before-page' : ''}`}>
               <div className="border-b border-slate-200 pb-4 mb-4">
                 <h1 className="text-2xl font-bold text-slate-800">Proceso de Atención de Enfermería (PAE)</h1>
-                <p className="text-sm text-slate-500">Fecha: {new Date(record.date).toLocaleString()} | Estado: {record.status}</p>
+                <p className="text-sm text-slate-500">
+                  Inicio (Antes): {new Date(record.date).toLocaleString()}
+                  {record.closedDate ? ` | Cierre (Después): ${new Date(record.closedDate).toLocaleString()}` : ''}
+                  {` | Estado: ${record.status}`}
+                </p>
               </div>
               
               {/* Patient Info */}
@@ -230,7 +252,12 @@ export default function PatientDetail({
                       <div key={noc.code} className="bg-emerald-50 p-2 rounded border border-emerald-100 mb-2 break-inside-avoid">
                         <div className="flex justify-between font-bold text-emerald-900 mb-1 text-[12px]">
                           <span>NOC [{noc.code}] - {noc.name}</span>
-                          <span className="text-[11px]">Inicial: {noc.initialRating} {noc.finalRating ? `| Final: ${noc.finalRating}` : ''}</span>
+                          <span className="text-[11px]">
+                            Inicial: {noc.initialRating}
+                            {noc.finalRating !== undefined && noc.finalRating !== null
+                              ? ` | Final: ${noc.finalRating} (Cambio: ${noc.finalRating - noc.initialRating > 0 ? '+' : ''}${noc.finalRating - noc.initialRating})`
+                              : ''}
+                          </span>
                         </div>
                         {[...noc.selectedNICs].sort((a, b) => parseInt(a.code.match(/\d+/)?.[0] || '0', 10) - parseInt(b.code.match(/\d+/)?.[0] || '0', 10)).map(nic => (
                           <div key={nic.code} className="bg-white p-1.5 rounded border border-amber-100 mb-1">
@@ -244,9 +271,19 @@ export default function PatientDetail({
                 ))}
               </div>
               
-              <div className="mt-6 pt-4 border-t border-slate-200 text-sm">
-                <p><strong>Evaluador:</strong> {record.evaluator}</p>
-                <p><strong>Observaciones:</strong> {record.observations || 'Ninguna'}</p>
+              <div className="mt-6 pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-sm break-inside-avoid">
+                <div className="bg-blue-50 p-3 rounded border border-blue-100">
+                  <p className="font-bold text-blue-900 text-xs uppercase mb-1">Registro Inicial (Antes)</p>
+                  <p><strong>Evaluador:</strong> {record.evaluator}</p>
+                  <p><strong>Fecha:</strong> {new Date(record.date).toLocaleString()}</p>
+                  <p className="mt-1"><strong>Observaciones Iniciales:</strong> {record.observations || 'Ninguna'}</p>
+                </div>
+                <div className="bg-emerald-50 p-3 rounded border border-emerald-100">
+                  <p className="font-bold text-emerald-900 text-xs uppercase mb-1">Evaluación y Cierre (Después)</p>
+                  <p><strong>Evaluador:</strong> {record.closingEvaluator || (record.status === 'CERRADA' ? record.evaluator : 'Pendiente')}</p>
+                  <p><strong>Fecha:</strong> {record.closedDate ? new Date(record.closedDate).toLocaleString() : 'Pendiente'}</p>
+                  <p className="mt-1"><strong>Observaciones Finales:</strong> {record.status === 'CERRADA' ? (record.finalObservations ?? 'Ninguna') : 'Pendiente'}</p>
+                </div>
               </div>
             </div>
           ))}

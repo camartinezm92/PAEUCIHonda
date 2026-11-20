@@ -88,5 +88,10 @@ export interface PAERecord {
   nandas: SelectedNANDA[];
   evaluator: string;
   observations: string;
+  finalObservations?: string;
+  closedDate?: string;
+  closingEvaluator?: string;
   userId?: string;
+  driveFileId?: string;
+  driveFileUrl?: string;
 }

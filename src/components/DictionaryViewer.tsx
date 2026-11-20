@@ -7,10 +7,11 @@ type SearchType = 'ALL' | 'DOMAIN' | 'CLASS' | 'NANDA' | 'NOC' | 'NIC';
 
 interface DictionaryViewerProps {
   onBack: () => void;
+  isAdmin?: boolean;
   requireAuth: (onSuccess: () => void) => void;
 }
 
-export default function DictionaryViewer({ onBack, requireAuth }: DictionaryViewerProps) {
+export default function DictionaryViewer({ onBack, isAdmin = false, requireAuth }: DictionaryViewerProps) {
   const { taxonomy, loading, updateTaxonomy } = useDictionary();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<SearchType>('ALL');
@@ -269,7 +270,7 @@ export default function DictionaryViewer({ onBack, requireAuth }: DictionaryView
                   )}
                 </div>
 
-                {!isEditing && (
+                {!isEditing && isAdmin && (
                   <div className="flex gap-2 ml-4">
                     <button 
                       onClick={startEdit}

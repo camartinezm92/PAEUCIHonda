@@ -9,6 +9,7 @@ import {
 } from '../data';
 import { useDictionary } from '../contexts/DictionaryContext';
 import { ChevronDown, ChevronUp, ChevronRight, Activity, ClipboardList, User, Save, Search } from 'lucide-react';
+import MedicalDiagnosisSelector from './MedicalDiagnosisSelector';
 
 interface CreatePAEProps {
   records: PAERecord[];
@@ -190,9 +191,22 @@ export default function CreatePAE({ records, initialPatient, onSave, onCancel }:
     }
 
     setIsSaving(true);
+    
+    // Get current time in Colombia (UTC-5)
+    const now = new Date();
+    const colombiaISO = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(now).replace(' ', 'T');
+
     const newRecord: PAERecord = {
       id: uuidv4(),
-      date: new Date().toISOString(),
+      date: colombiaISO,
       status: 'INICIADA',
       patient,
       needs: selectedNeeds,
@@ -279,12 +293,10 @@ export default function CreatePAE({ records, initialPatient, onSave, onCancel }:
             </select>
           </div>
           <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Diagnóstico Médico</label>
-            <textarea 
-              className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-              rows={2}
+            <label className="block text-sm font-medium text-slate-700 mb-1">Diagnóstico Médico (Selección múltiple)</label>
+            <MedicalDiagnosisSelector
               value={patient.medicalDiagnosis}
-              onChange={e => setPatient({...patient, medicalDiagnosis: e.target.value})}
+              onChange={(val) => setPatient(prev => ({ ...prev, medicalDiagnosis: val }))}
             />
           </div>
         </div>
@@ -624,10 +636,11 @@ export default function CreatePAE({ records, initialPatient, onSave, onCancel }:
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Observaciones</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Observaciones Iniciales (Antes)</label>
             <textarea 
               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
               rows={3}
+              placeholder="Ingrese valoración y observaciones iniciales del paciente..."
               value={observations}
               onChange={e => setObservations(e.target.value)}
             />
